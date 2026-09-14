@@ -24,7 +24,7 @@ export function Onboarding() {
     <div className="min-h-dvh mx-auto max-w-md flex flex-col justify-center px-5" style={{ background: C.bg }}>
       <div className="mb-6">
         <div className="text-[11px] uppercase tracking-[0.2em]" style={{ color: C.cap }}>
-          LuxMily · Budget Optima
+          Luxmi.ly
         </div>
         <h1 className="text-2xl font-semibold mt-2" style={{ color: C.text }}>
           Build your budget

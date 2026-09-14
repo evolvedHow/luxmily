@@ -37,20 +37,33 @@ export function BenchTag({
   median,
   medianNote,
   source,
+  url,
 }: {
   avg: number
   median?: number
   medianNote?: string
   source: string
+  url?: string
 }) {
   const title = `${source}${median ? ` · median: ${medianNote ?? 'published median'}` : ''}`
   return (
-    <span
-      className="text-[10px] text-ash cursor-help"
-      title={title}
-    >
+    <span className="text-[10px] text-ash cursor-help inline-flex items-center gap-1" title={title}>
       avg {money(avg)}/mo
       {median !== undefined && <> · med <span className="tnum">{money(median)}</span></>}
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={(e) => e.stopPropagation()}
+          className="underline underline-offset-2 hover:opacity-70"
+          title={`Source: ${source}`}
+        >
+          src
+        </a>
+      ) : (
+        <> · {source}</>
+      )}
     </span>
   )
 }

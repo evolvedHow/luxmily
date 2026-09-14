@@ -18,7 +18,8 @@ export interface Scaffold {
   plan: Record<string, number>
   /** Category lock, keyed `${theme}.${cat}`. */
   catLock: Record<string, LockMode>
-  actual: Record<string, number>
+  /** Observed spend stays empty until the user checks a line. */
+  observed: Record<string, number>
 }
 
 function benchMonthly(def: CatDef, incomeMonthly: number, takeHome: number, scale: number): number {
@@ -38,7 +39,7 @@ function fitToTarget(plans: { id: string; plan: number }[], target: number): num
 }
 
 /**
- * Build the starting budget from an income answer: cohort → theme shares →
+ * Build the starting plan from an income answer: cohort → theme shares →
  * benchmark-scaled category plans that fit each theme's allocation. Pay-yourself-
  * first fields keep their benchmark rail values; slack becomes the Investments
  * (flex) line instead of being silently dropped.
@@ -49,7 +50,7 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string): 
   const share: Record<string, number> = {}
   const plan: Record<string, number> = {}
   const catLock: Record<string, LockMode> = {}
-  const actual: Record<string, number> = {}
+  const observed: Record<string, number> = {}
 
   for (const t of THEMES) {
     const targetShare = themeShare(cohortId, t.id)
@@ -60,7 +61,7 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string): 
     for (const c of t.cats) {
       const key = catKey(t.id, c.id)
       catLock[key] = c.lock
-      actual[key] = 0
+      observed[key] = 0
       if (c.flex) {
         plan[key] = 0
         continue
@@ -91,7 +92,7 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string): 
     }
   }
 
-  return { share, plan, catLock, actual }
+  return { share, plan, catLock, observed }
 }
 
 export interface BudgetInput {
@@ -100,7 +101,7 @@ export interface BudgetInput {
   cohortId: string
   share: Record<string, number>
   plan: Record<string, number>
-  actual: Record<string, number>
+  observed: Record<string, number>
   catLock: Record<string, LockMode>
 }
 
@@ -124,15 +125,15 @@ export function buildBudget(input: BudgetInput): Budget {
         id: c.id,
         label: c.label,
         plan,
-        actual: input.actual[key] ?? 0,
+        observed: input.observed[key] ?? 0,
         lock: input.catLock[key] ?? c.lock,
-        fixedCadence: !!c.fixedCadence,
         payFirst: !!c.payFirst,
         flex: !!c.flex,
         avg: c.bench.avg,
         median: c.bench.median,
         medianNote: c.bench.medianNote,
         source: c.bench.source,
+        url: c.bench.url,
         pctOf: c.bench.pctOf,
       }
     }),

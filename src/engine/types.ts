@@ -5,21 +5,7 @@
 
 export type LockMode = 'hard' | 'floor' | 'ceiling' | 'elastic'
 
-export type Viewpoint = 'top-down' | 'middle-out' | 'bottom-up'
-
-/** A time-aware spending record for one line item. */
-export interface Pacing {
-  planned: number
-  actual: number
-  /** What you'd expect to have spent by today if perfectly evenly paced. */
-  expected: number
-  delta: number
-  deltaPct: number
-  /** Straight-line extrapolation to month end. */
-  projected: number
-  status: 'over' | 'under' | 'on-pace'
-  dayFraction: number
-}
+export type Viewpoint = 'top-down' | 'planned' | 'observed'
 
 interface Bench {
   /** Monthly avg (dollars) or a fraction of income/take-home, as the data says. */
@@ -28,18 +14,18 @@ interface Bench {
   median?: number
   medianNote?: string
   source: string
+  url?: string
   pctOf?: 'gross' | 'takehome'
 }
 
 export interface BudgetCategory extends Bench {
   id: string
   label: string
-  /** Dollars/month the user commits. */
+  /** Dollars/month the user commits to this line. */
   plan: number
-  /** Dollars actually spent this month. */
-  actual: number
+  /** Dollars/month the user has discovered they actually spend. 0 = not entered. */
+  observed: number
   lock: LockMode
-  fixedCadence: boolean
   /** Pay-yourself-first field (401k / Roth / savings), shown on the strip. */
   payFirst: boolean
   /** Slack absorber inside its theme (e.g. investments envelope). */
@@ -76,17 +62,23 @@ export interface ResolvedCategory {
   label: string
   lock: LockMode
   plan: number
-  actual: number
+  /** The user's own observed spend. 0 means "haven't checked this line yet". */
+  observed: number
+  /** observed ÷ Cap × 100 — what the discovered number actually means. */
+  observedPct: number
+  /** observed − plan. Positive = over plan. */
+  delta: number
+  /** delta ÷ plan (only when observed > 0). */
+  deltaPct: number
   benchAvg: number
   benchMedian?: number
   benchMedianNote?: string
   benchSource: string
+  benchUrl?: string
   payFirst: boolean
   flex: boolean
-  fixedCadence: boolean
-  pacing: Pacing
-  /** Dollars spent beyond plan. */
-  overPlan: number
+  /** Surplus candidate: plan − observed, only when observed < plan. */
+  surplus: number
 }
 
 export interface ResolvedTheme {
@@ -100,14 +92,17 @@ export interface ResolvedTheme {
   /** share × Cap. */
   allocation: number
   planTotal: number
-  actualTotal: number
+  observedTotal: number
   /** Dollars by which plans exceed the theme allocation. */
   planOver: number
-  /** Dollars by which actuals exceed plans. */
-  spendOver: number
+  /** What the user must find elsewhere. */
+  observedOverPlan: number
+  /** Room this theme gave back where spending came in below plan. */
+  reallocatable: number
   benchShare: number
   benchSource: string
-  pacing: Pacing
+  /** Distinct sources backing this theme's rows, each with its link. */
+  sources: { label: string; url?: string }[]
   cats: ResolvedCategory[]
 }
 
@@ -122,13 +117,14 @@ export interface ResolvedBudget {
   /** Flattened pay-yourself-first fields for the mandatory strip. */
   payFirst: ResolvedCategory[]
   totalPlan: number
-  totalActual: number
+  totalObserved: number
   totalPlanOver: number
-  totalSpendOver: number
+  /** Total spending discovered above plan. */
+  observedOverPlan: number
+  /** What came in under plan and is free to move elsewhere. */
+  reallocatable: number
   /** Cap − totalPlan; negative means the plan overruns the Cap. */
   buffer: number
-  /** True when the whole budget is in the green: shares, plans, actuals. */
+  /** True when the whole budget is green: plans fit every theme's allocation. */
   ok: boolean
-  day: number
-  totalDays: number
 }

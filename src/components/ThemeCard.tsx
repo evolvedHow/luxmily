@@ -1,12 +1,17 @@
 import { useBudget } from '../store/useBudget'
 import { C, money, pct } from '../theme/tokens'
 import { Alert, BenchTag, Card, MoneyInput, Pill, Row, StatusDot } from './ui'
+import { catKeyOf } from './PayFirstStrip'
 import type { ResolvedCategory, ResolvedTheme, Viewpoint } from '../engine/types'
+import { ExternalLink } from 'lucide-react'
 
 export function ThemeCard({ t, view }: { t: ResolvedTheme; view: Viewpoint }) {
   const setShare = useBudget((s) => s.setShare)
-  const red = t.planOver > 0 || t.spendOver > 0
+  const isObserved = view === 'observed'
+  const red = t.planOver > 0 || t.observedOverPlan > 0
   const accent = red ? C.red : t.payFirst ? C.green : C.cap
+
+  const entered = t.cats.filter((c) => c.observed > 0).length
 
   return (
     <Card accent={accent}>
@@ -46,11 +51,9 @@ export function ThemeCard({ t, view }: { t: ResolvedTheme; view: Viewpoint }) {
           value={`${money(t.planTotal)}${t.planOver > 0 ? `  +${money(t.planOver)}` : ''}`}
           color={t.planOver > 0 ? C.red : C.text}
         />
-        <Row
-          label="Spent MTD"
-          value={`${money(t.actualTotal)}${t.spendOver > 0 ? `  +${money(t.spendOver)}` : ''}`}
-          color={t.spendOver > 0 ? C.red : C.muted}
-        />
+        {t.payFirst && (
+          <Row label="Observed" value={`${money(t.observedTotal)}${t.observedOverPlan > 0 ? `  +${money(t.observedOverPlan)}` : ''}`} color={t.observedOverPlan > 0 ? C.red : C.muted} />
+        )}
       </div>
 
       <div className="flex items-center gap-2 mt-1.5">
@@ -73,9 +76,16 @@ export function ThemeCard({ t, view }: { t: ResolvedTheme; view: Viewpoint }) {
           <Alert>Plans exceed this theme by {money(t.planOver)} — take it from another theme.</Alert>
         </div>
       )}
-      {t.spendOver > 0 && t.planOver === 0 && (
+      {t.observedOverPlan > 0 && t.planOver === 0 && (
         <div className="mt-2">
-          <Alert>Spent {money(t.spendOver)} more than planned this month.</Alert>
+          <Alert accent={C.red}>You're spending {money(t.observedOverPlan)} above plan here — trim it or fund it from another theme.</Alert>
+        </div>
+      )}
+      {t.reallocatable > 0 && (
+        <div className="mt-2">
+          <Alert accent={C.green}>
+            You freed up {money(t.reallocatable)} vs plan — reallocate it to Savings, Travel, or wherever you'll enjoy it most.
+          </Alert>
         </div>
       )}
 
@@ -84,46 +94,80 @@ export function ThemeCard({ t, view }: { t: ResolvedTheme; view: Viewpoint }) {
           <CategoryRow key={c.id} c={c} view={view} />
         ))}
       </div>
+
+      {/* Sources, each linked — under its own theme box. */}
+      <div className="mt-2.5 border-t pt-2 space-y-1" style={{ borderColor: C.border }}>
+        <div className="text-[9.5px] uppercase tracking-[0.16em]" style={{ color: C.muted }}>
+          {isObserved && entered > 0 ? `Observed on ${entered} of ${t.cats.length} lines` : 'Where these averages come from'}
+        </div>
+        {t.sources.map((s) => (
+          <div key={s.label} className="flex items-center gap-1.5">
+            <span className="text-[10px] leading-snug" style={{ color: C.muted }}>
+              {s.label}
+            </span>
+            {s.url && (
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-0.5 text-[10px] underline underline-offset-2 hover:opacity-70"
+                style={{ color: C.cap }}
+              >
+                source <ExternalLink size={9} />
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
     </Card>
   )
 }
 
 function CategoryRow({ c, view }: { c: ResolvedCategory; view: Viewpoint }) {
   const setPlan = useBudget((s) => s.setPlan)
-  const setActual = useBudget((s) => s.setActual)
-  const key = `${c.themeId}.${c.id}`
-  const over = c.overPlan > 0
+  const setObserved = useBudget((s) => s.setObserved)
+  const isObserved = view === 'observed'
+  const key = catKeyOf(c)
+  const entered = c.observed > 0
 
   return (
     <div className="py-2">
       <div className="flex items-center gap-2.5">
-        {view === 'bottom-up' && <StatusDot ok={!over} />}
         <div className="flex-1 min-w-0">
           <div className="text-[13px] leading-tight flex items-baseline gap-2" style={{ color: c.flex ? C.muted : C.text }}>
             {c.label}
             {c.flex && <span className="text-[9.5px] uppercase" style={{ color: C.muted }}>flex</span>}
           </div>
-          <BenchTag avg={c.benchAvg} median={c.benchMedian} medianNote={c.benchMedianNote} source={c.benchSource} />
+          <BenchTag avg={c.benchAvg} median={c.benchMedian} medianNote={c.benchMedianNote} source={c.benchSource} url={c.benchUrl} />
         </div>
 
-        {view !== 'bottom-up' && (
+        {isObserved ? (
+          <>
+            <div className="w-14 shrink-0 text-right">
+              <div className="tnum text-[11px]" style={{ color: C.text }}>{pct(c.observedPct, 1)}</div>
+              <div className="text-[9px]" style={{ color: C.muted }}>of cap</div>
+            </div>
+            <MoneyInput
+              value={c.observed}
+              onChange={(v) => setObserved(key, v)}
+              label={`${c.label} observed`}
+              accent={entered && c.delta > 0 ? C.red : C.text}
+            />
+          </>
+        ) : (
           <MoneyInput value={c.plan} onChange={(v) => setPlan(key, v)} label={`${c.label} plan`} />
         )}
-        <MoneyInput
-          value={c.actual}
-          onChange={(v) => setActual(key, v)}
-          label={`${c.label} actual`}
-          accent={view === 'bottom-up' ? (over ? C.red : C.text) : C.muted}
-        />
-        {view === 'bottom-up' &&
-          (over ? (
-            <Pill tone="red">+{Math.round(c.overPlan)}</Pill>
-          ) : (
-            <span className="tnum text-[11px] w-8 text-right" style={{ color: C.green }}>
-              ✓
-            </span>
-          ))}
       </div>
+
+      {isObserved && c.flex === false && c.observed > 0 && (
+        <div className="mt-1 flex justify-end">
+          {c.delta > 0 ? (
+            <Pill tone="red">+{money(c.delta)} over plan</Pill>
+          ) : (
+            <Pill tone="green">−{money(-c.delta)} vs plan · free to reallocate</Pill>
+          )}
+        </div>
+      )}
     </div>
   )
 }

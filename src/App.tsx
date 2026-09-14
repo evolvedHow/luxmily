@@ -27,7 +27,7 @@ function Dashboard() {
         <div className="flex items-center justify-between pt-4 pb-1">
           <div>
             <div className="text-[11px] uppercase tracking-[0.2em]" style={{ color: C.cap }}>
-              LuxMily · Budget Optima
+              Luxmi.ly
             </div>
             <div className="text-[13px] mt-0.5" style={{ color: C.muted }}>
               {r.cohortLabel} · {r.incomeMonthly > 0 ? `$${Math.round(r.incomeMonthly).toLocaleString()}/mo income` : ''}

@@ -12,24 +12,22 @@ interface BudgetState {
   incomeMonthly: number
   takeHome: number
   cohortId: string
-  day: number
-  totalDays: number
   view: Viewpoint
   /** Theme target shares, keyed by theme id. */
   share: Record<string, number>
-  /** Category plan $ / lock / actual, keyed `${theme}.${cat}`. */
+  /** Category plan $ / lock / observed spend, keyed `${theme}.${cat}`. */
   plan: Record<string, number>
   catLock: Record<string, LockMode>
-  actual: Record<string, number>
+  /** What the user has discovered they actually spend per month. 0 = unentered. */
+  observed: Record<string, number>
 }
 
 interface Actions {
   onboard: (incomeMonthly: number, takeHome: number) => void
-  setDay: (d: number) => void
   setView: (v: Viewpoint) => void
   setShare: (themeId: string, share: number) => void
   setPlan: (key: string, value: number) => void
-  setActual: (key: string, value: number) => void
+  setObserved: (key: string, value: number) => void
   setCatLock: (key: string, lock: LockMode) => void
   reset: () => void
   editIncome: () => void
@@ -40,13 +38,11 @@ const initial: BudgetState = {
   incomeMonthly: 0,
   takeHome: 0,
   cohortId: 'c3',
-  day: 15,
-  totalDays: 30,
   view: 'top-down',
   share: {},
   plan: {},
   catLock: {},
-  actual: {},
+  observed: {},
 }
 
 function seeded(cap: number, incomeMonthly: number) {
@@ -57,7 +53,7 @@ function seeded(cap: number, incomeMonthly: number) {
     share: s.share,
     plan: s.plan,
     catLock: s.catLock,
-    actual: s.actual,
+    observed: s.observed,
   }
 }
 
@@ -69,14 +65,13 @@ export const useBudget = create<BudgetState & Actions>()(
       onboard: (incomeMonthly, takeHome) =>
         set({ initialized: true, incomeMonthly, takeHome, ...seeded(takeHome, incomeMonthly) }),
 
-      setDay: (day) => set({ day }),
       setView: (view) => set({ view }),
 
       setShare: (themeId, share) =>
         set({ share: { ...get().share, [themeId]: Math.min(1, Math.max(0, share)) } }),
 
       setPlan: (key, value) => set({ plan: { ...get().plan, [key]: Math.max(0, value) } }),
-      setActual: (key, value) => set({ actual: { ...get().actual, [key]: Math.max(0, value) } }),
+      setObserved: (key, value) => set({ observed: { ...get().observed, [key]: Math.max(0, value) } }),
       setCatLock: (key, lock) => set({ catLock: { ...get().catLock, [key]: lock } }),
 
       reset: () => {
@@ -98,13 +93,12 @@ export function useResolved(): ResolvedBudget {
   const cohortId = useBudget((s) => s.cohortId)
   const share = useBudget((s) => s.share)
   const plan = useBudget((s) => s.plan)
-  const actual = useBudget((s) => s.actual)
+  const observed = useBudget((s) => s.observed)
   const catLock = useBudget((s) => s.catLock)
-  const day = useBudget((s) => s.day)
-  const totalDays = useBudget((s) => s.totalDays)
 
   return useMemo(
-    () => resolve(buildBudget({ incomeMonthly, takeHome, cohortId, share, plan, actual, catLock }), day, totalDays),
-    [incomeMonthly, takeHome, cohortId, share, plan, actual, catLock, day, totalDays],
+    () =>
+      resolve(buildBudget({ incomeMonthly, takeHome, cohortId, share, plan, observed, catLock })),
+    [incomeMonthly, takeHome, cohortId, share, plan, observed, catLock],
   )
 }

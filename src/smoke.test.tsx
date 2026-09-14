@@ -16,13 +16,11 @@ function resetStore() {
     incomeMonthly: 0,
     takeHome: 0,
     cohortId: 'c3',
-    day: 15,
-    totalDays: 30,
     view: 'top-down',
     share: {},
     plan: {},
     catLock: {},
-    actual: {},
+    observed: {},
   })
 }
 
@@ -39,7 +37,7 @@ async function onboard(income = 10000, cap = 6800) {
   fireEvent.click(screen.getByText('Build my budget'))
 }
 
-describe('App — budget, not flywheel', () => {
+describe('App — an optimizer, not a tracker', () => {
   it('asks for income and take-home before anything else', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<App />)
@@ -66,12 +64,13 @@ describe('App — budget, not flywheel', () => {
     expect((screen.getByLabelText('Take-home pay per month') as HTMLInputElement).value).toBe('7800')
   })
 
-  it('builds a balanced dashboard with the pay-yourself-first strip on top', async () => {
+  it('builds a clean dashboard with pay-first strip and every theme, including Travel', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     await onboard()
-expect(screen.getByText(/Take-home · the Cap/)).toBeTruthy()
-expect(screen.getAllByText(/Pay yourself first/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Take-home · the Cap/)).toBeTruthy()
+    expect(screen.getAllByText(/Pay yourself first/).length).toBeGreaterThan(0)
     expect(screen.getByText('Savings & Retirement')).toBeTruthy()
+    expect(screen.getByText('Travel')).toBeTruthy()
     expect(screen.getByText('Housing')).toBeTruthy()
     expect(useBudget.getState().initialized).toBe(true)
     expect(err).not.toHaveBeenCalled()
@@ -87,15 +86,23 @@ expect(screen.getAllByText(/Pay yourself first/).length).toBeGreaterThan(0)
     expect(useBudget.getState().plan['food.groceries']).toBe(12000)
   })
 
-  it('switches viewpoints and records an actual over plan', async () => {
+  it('observed view: entered spend becomes a % of cap and an over-plan pill', async () => {
     await onboard()
-    fireEvent.click(screen.getByText('Bottom-up'))
-    // Category-level actuals now drive the strip; over-plan shows a +red pill.
-    fireEvent.change(screen.getByLabelText('Groceries (food at home) actual'), {
+    fireEvent.click(screen.getByRole('button', { name: 'View: Observed' }))
+    fireEvent.change(screen.getByLabelText('Groceries (food at home) observed'), {
       target: { value: 1000 },
     })
-    // Over-plan categories get a +$ red pill; the theme overspend is also shown.
-    expect(screen.getAllByText(/\+/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/over plan/)).toBeTruthy()
+    expect(useBudget.getState().observed['food.groceries']).toBe(1000)
+  })
+
+  it('observed spend below plan is flagged as free to reallocate', async () => {
+    await onboard()
+    fireEvent.click(screen.getByRole('button', { name: 'View: Observed' }))
+    fireEvent.change(screen.getByLabelText('Groceries (food at home) observed'), {
+      target: { value: 300 },
+    })
+    expect(screen.getByText(/free to reallocate/)).toBeTruthy()
   })
 
   it('resets back to the benchmark baseline', async () => {
@@ -103,8 +110,7 @@ expect(screen.getAllByText(/Pay yourself first/).length).toBeGreaterThan(0)
     fireEvent.change(screen.getByLabelText('Groceries (food at home) plan'), {
       target: { value: 12000 },
     })
-    const before = useBudget.getState().plan['food.groceries']
-    expect(before).toBe(12000)
+    expect(useBudget.getState().plan['food.groceries']).toBe(12000)
     fireEvent.click(screen.getByLabelText('Reset to baseline'))
     expect(useBudget.getState().plan['food.groceries']).toBeLessThan(12000)
   })

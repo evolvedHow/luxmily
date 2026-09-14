@@ -7,11 +7,14 @@ export interface ExportCategory {
   flex: boolean
   lock: string
   plan: number
-  actual: number
+  observed: number
+  observedPct: number
+  delta: number
+  surplus: number
   benchAvg: number
   benchMedian?: number
   benchSource: string
-  overPlan: number
+  sourceUrl?: string
 }
 
 export interface ExportTheme {
@@ -22,10 +25,12 @@ export interface ExportTheme {
   benchSharePct: number
   allocation: number
   planTotal: number
-  actualTotal: number
+  observedTotal: number
   planOver: number
-  spendOver: number
+  reallocatable: number
+  observedOverPlan: number
   source: string
+  sources: { label: string; url?: string }[]
   cats: ExportCategory[]
 }
 
@@ -37,14 +42,14 @@ export interface ExportBudget {
     takeHome: number
     cohortId: string
     cohortLabel: string
-    day: number
-    totalDays: number
     ok: boolean
     buffer: number
+    totalPlan: number
+    totalObserved: number
+    totalReallocatable: number
   }
   payYourselfFirst: ExportCategory[]
   themes: ExportTheme[]
-  totals: { plan: number; actual: number; planOver: number; spendOver: number }
 }
 
 function cat(r: ResolvedCategory): ExportCategory {
@@ -55,11 +60,14 @@ function cat(r: ResolvedCategory): ExportCategory {
     flex: r.flex,
     lock: r.lock,
     plan: r.plan,
-    actual: r.actual,
+    observed: r.observed,
+    observedPct: Math.round(r.observedPct * 1000) / 10,
+    delta: Math.round(r.delta),
+    surplus: Math.round(r.surplus),
     benchAvg: r.benchAvg,
     benchMedian: r.benchMedian,
     benchSource: r.benchSource,
-    overPlan: r.overPlan,
+    sourceUrl: r.benchUrl,
   }
 }
 
@@ -72,31 +80,33 @@ function theme(t: ResolvedTheme): ExportTheme {
     benchSharePct: Math.round(t.benchShare * 1000) / 10,
     allocation: t.allocation,
     planTotal: t.planTotal,
-    actualTotal: t.actualTotal,
+    observedTotal: t.observedTotal,
     planOver: t.planOver,
-    spendOver: t.spendOver,
+    reallocatable: t.reallocatable,
+    observedOverPlan: t.observedOverPlan,
     source: t.benchSource,
+    sources: t.sources,
     cats: t.cats.map(cat),
   }
 }
 
 export function toExport(r: ResolvedBudget): ExportBudget {
   return {
-    app: 'LuxMily Budget Optima',
+    app: 'Luxmi.ly',
     exportedAt: new Date().toISOString(),
     meta: {
       incomeMonthly: r.incomeMonthly,
       takeHome: r.takeHome,
       cohortId: r.cohortId,
       cohortLabel: r.cohortLabel,
-      day: r.day,
-      totalDays: r.totalDays,
       ok: r.ok,
       buffer: r.buffer,
+      totalPlan: r.totalPlan,
+      totalObserved: r.totalObserved,
+      totalReallocatable: r.reallocatable,
     },
     payYourselfFirst: r.payFirst.map(cat),
     themes: r.themes.map(theme),
-    totals: { plan: r.totalPlan, actual: r.totalActual, planOver: r.totalPlanOver, spendOver: r.totalSpendOver },
   }
 }
 
@@ -114,17 +124,19 @@ export function toCSV(r: ResolvedBudget): string {
   const rows: (string | number | null | undefined)[][] = []
   const m = toExport(r)
 
-  rows.push(['LuxMily Budget Optima — export'])
+  rows.push(['Luxmi.ly — optimizer export'])
   rows.push([])
   rows.push(['Income (before tax)', r.incomeMonthly])
   rows.push(['Take-home (Cap)', r.takeHome])
   rows.push(['Income cohort', r.cohortLabel])
-  rows.push(['Budget OK (all green)', m.meta.ok ? 'yes' : 'no'])
+  rows.push(['Optimized (all green)', m.meta.ok ? 'yes' : 'no'])
   rows.push(['Cap - plan buffer', r.buffer])
+  rows.push(['Observed spend', r.totalObserved])
+  rows.push(['Free to reallocate', r.reallocatable])
   rows.push([])
-  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme allocation $', 'Plan over $', 'Actual $', 'Actual over plan $', 'Lock', 'Source'])
+  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme alloc $', 'Plan over $', 'Observed $', 'Observed % of cap', 'vs plan $', 'Reallocate $', 'Lock', 'Source', 'Source link'])
   for (const t of m.themes) {
-    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', t.planTotal, t.allocation, t.planOver, t.actualTotal, t.spendOver, '', t.source])
+    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', t.planTotal, t.allocation, t.planOver, t.observedTotal, '', '', t.reallocatable, '', t.source, ''])
     for (const c of t.cats) {
       rows.push([
         '',
@@ -134,10 +146,13 @@ export function toCSV(r: ResolvedBudget): string {
         c.plan,
         '',
         '',
-        c.actual,
-        c.overPlan,
+        c.observed,
+        `${c.observedPct}%`,
+        c.delta === 0 ? '' : c.delta,
+        c.surplus,
         c.lock,
         c.benchSource,
+        c.sourceUrl ?? '',
       ])
     }
   }

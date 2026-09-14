@@ -4,17 +4,14 @@ import { Card, Pill, Row } from './ui'
 import type { ResolvedBudget } from '../engine/types'
 
 /**
- * The one hard number. Plan and actual each get a bar against the cap so the
- * whole-budget state is a glance, not a sum.
+ * The one hard number. The plan sits against the cap; the Observed line says what
+ * you have discovered over time; the gap back is what you can reallocate — this
+ * app optimizes, it does not track.
  */
 export function CapCard({ r }: { r: ResolvedBudget }) {
   const editIncome = useBudget((s) => s.editIncome)
-  const setDay = useBudget((s) => s.setDay)
-  const day = useBudget((s) => s.day)
-  const totalDays = useBudget((s) => s.totalDays)
 
-  const planShare = r.cap > 0 ? Math.min(1.3, r.totalPlan / r.cap) : 0
-  const actShare = r.cap > 0 ? Math.min(1.3, r.totalActual / r.cap) : 0
+  const planShare = r.cap > 0 ? Math.min(1, r.totalPlan / r.cap) : 0
 
   return (
     <Card accent={r.ok ? C.green : C.red}>
@@ -30,48 +27,46 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
             Income <span className="tnum">{money(r.incomeMonthly)}</span>/mo · cohort {r.cohortLabel}
           </div>
         </div>
-        <Pill tone={r.ok ? 'green' : 'red'}>{r.ok ? 'balanced' : 'over budget'}</Pill>
+        <Pill tone={r.ok ? 'green' : 'red'}>{r.ok ? 'optimized' : 'over plan'}</Pill>
       </div>
 
       <div className="mt-3.5 space-y-1.5">
         <Row label="Planned this month" value={money(r.totalPlan)} strong color={r.totalPlanOver > 0 ? C.red : C.text} />
-        <Row label="Spent MTD" value={money(r.totalActual)} color={r.totalSpendOver > 0 ? C.red : C.muted} />
-        <Row label="Buffer" value={money(r.buffer)} color={r.buffer < 0 ? C.red : C.green} />
+        <Row
+          label="Your observed spend"
+          value={money(r.totalObserved)}
+          color={r.observedOverPlan > 0 ? C.red : C.muted}
+        />
+        <Row
+          label="Free to reallocate"
+          value={r.reallocatable > 0 ? money(r.reallocatable) : '— '}
+          color={r.reallocatable > 0 ? C.green : C.muted}
+        />
+        <Row label="Cap buffer" value={money(r.buffer)} color={r.buffer < 0 ? C.red : C.green} />
       </div>
 
       <div className="mt-3 space-y-1.5">
-        <Bar label="Plan vs cap" share={planShare} tone={r.totalPlanOver > 0 ? 'red' : 'cap'} />
-        <Bar label="Actual vs cap" share={actShare} tone={r.totalSpendOver > 0 ? 'red' : 'muted'} />
+        <Bar label="Plan vs cap" share={planShare} color={r.totalPlanOver > 0 ? C.red : C.cap} />
       </div>
 
-      <div className="flex items-baseline justify-between mt-3">
-        <span className="text-[11px]" style={{ color: C.muted }}>
-          Day of month {day} / {totalDays}
+      <div className="flex items-center justify-between mt-3">
+        <span className="text-[10.5px] leading-snug max-w-[70%]" style={{ color: C.muted }}>
+          Enter what you actually spend per line in the Observed view — Luxmi.ly then shows what that means
+          as a % of the cap and what it is worth elsewhere.
         </span>
         <button
           onClick={editIncome}
-          className="text-[11px] underline underline-offset-2"
+          className="text-[11px] underline underline-offset-2 shrink-0 ml-3"
           style={{ color: C.cap }}
         >
           Edit income →
         </button>
       </div>
-      <input
-        type="range"
-        min={1}
-        max={totalDays}
-        value={day}
-        onChange={(e) => setDay(Number(e.target.value))}
-        className="lever w-full mt-1.5"
-        style={{ ['--accent' as string]: C.muted }}
-        aria-label="Day of month"
-      />
     </Card>
   )
 }
 
-function Bar({ label, share, tone }: { label: string; share: number; tone: 'red' | 'cap' | 'muted' }) {
-  const color = tone === 'red' ? C.red : tone === 'cap' ? C.cap : C.muted
+function Bar({ label, share, color }: { label: string; share: number; color: string }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-[11px] w-24 shrink-0" style={{ color: C.muted }}>
