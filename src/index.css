@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* The print report is hidden on screen, shown only when printing/saving PDF. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+  }
+  @page {
+    margin: 14mm;
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: #131315;
+    color: #eceae6;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Currency and percentages must not jitter while a slider is dragging. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+@layer components {
+  /* Thumb-zone sliders: a 22px touch target on a 4px visual track. Tight enough
+     that a dozen levers fit on one screen, still comfortably draggable — the
+     thumb is 16px and horizontal drags forgive vertical imprecision. */
+  .lever {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 22px;
+    width: 100%;
+    background: transparent;
+    cursor: pointer;
+    display: block;
+  }
+
+  .lever::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: #2a2b30;
+  }
+
+  .lever::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 999px;
+    background: var(--accent, #eceae6);
+    border: 3px solid #1e1f22;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+    transition: transform 120ms ease;
+  }
+
+  .lever:active::-webkit-slider-thumb {
+    transform: scale(1.18);
+  }
+
+  .lever::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: #2a2b30;
+  }
+
+  .lever::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: var(--accent, #eceae6);
+    border: 3px solid #1e1f22;
+  }
+}
