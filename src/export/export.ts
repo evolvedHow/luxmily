@@ -143,8 +143,28 @@ export function toExport(r: ResolvedBudget): ExportBudget {
   }
 }
 
-export function toJSON(r: ResolvedBudget): string {
-  return JSON.stringify(toExport(r), null, 2)
+export function toJSON(r: ResolvedBudget, compact = false): string {
+  const x = toExport(r)
+  if (!compact) return JSON.stringify(x, null, 2)
+  // Compact = minified + URL/note fields stripped (values the model can't use).
+  // Used for small-token-budget providers (Groq free tier caps ~8k tok/request).
+  return JSON.stringify({
+    ...x,
+    payYourselfFirst: x.payYourselfFirst.map((c) => ({
+      ...c,
+      benchMedianNote: undefined,
+      sourceUrl: undefined,
+    })),
+    themes: x.themes.map((t) => ({
+      ...t,
+      sources: t.sources.map((s) => ({ label: s.label })),
+      cats: t.cats.map((c) => ({
+        ...c,
+        benchMedianNote: undefined,
+        sourceUrl: undefined,
+      })),
+    })),
+  })
 }
 
 function esc(v: string | number | undefined | null): string {

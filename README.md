@@ -141,6 +141,11 @@ can actually use (no stale names, no retired models). Without a key it shows a
 small built-in fallback list. There's also a **Custom model id** box that
 sends any model id verbatim (cleared on provider switch).
 
+**Groq free tier caps ~8,000 tokens per request**, which the full budget JSON
+can exceed — so for Groq, Luxmi sends a *condensed* export (same numbers,
+source links stripped, minified; the ✨ dialog notes "condensed payload").
+Google, Anthropic, OpenRouter, and Ollama receive the full document.
+
 **Private operator config — the prompt & model params:** Luxmi's system prompt
 and generation parameters live in **`src/advisor/luxmi.yaml`**. It is compiled
 into the bundle at build time and is **not shown or editable in the app UI**.

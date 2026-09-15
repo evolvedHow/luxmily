@@ -88,7 +88,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
         apiKey,
         model: effectiveModelId(provider.id, modelId, customModel),
         system: buildLuxmiSystem(),
-        prompt: buildLuxmiUserPrompt(r),
+        prompt: buildLuxmiUserPrompt(r, provider.compactPrompt),
         headers: provider.headers,
         signal: ac.signal,
         onDelta: (t) => setText((prev) => prev + t),
@@ -250,6 +250,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
           )}
           <div className="mt-1 text-[9.5px] tnum leading-snug" style={{ color: C.muted }}>
             requests → {baseUrl.trim() || provider.url} · model {effectiveModelId(provider.id, modelId, customModel)}
+            {provider.compactPrompt ? ' · condensed payload (fits Groq free tier)' : ''}
           </div>
         </div>
 

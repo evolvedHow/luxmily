@@ -104,8 +104,8 @@ src/theme/tokens.ts      C palette, money(), pct()
 
 ## Testing
 
-- 5 test files, 55 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
-  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (18),
+- 5 test files, 56 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
+  (5), `export/export.test.ts` (5), `advisor/advisor.test.ts` (18),
   `smoke.test.tsx` (12, real jsdom mount).
 - Smoke tests rely on `aria-label`s: "Household income before tax per month",
   "Zip code (optional)", "Take-home pay per month", `View: ${label}` buttons,
@@ -138,9 +138,18 @@ src/theme/tokens.ts      C palette, money(), pct()
   per (provider, key-prefix) and falls back to the hardcoded `models` on
   failure. AdvisorSheet syncs the dropdown on open/key change (label shows
   "syncing…" then "from your key").
-- **Groq on 2026-09-15:** `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`
-  are DEPRECATED/404. Live chat models confirmed: `openai/gpt-oss-120b`,
-  `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`, `allam-2-7b`. Default = gpt-oss-120b.
+- **Groq free tier caps ~8,000 tokens per request (TPM).** The full Luxmi
+  budget JSON (~26–30KB ≈ 8.5K+ tokens) exceeds it → HTTP 413 "Request too
+  large … TPM: Limit 8000, Requested N". Fix: **compact prompt**. Providers
+  flagged `compactPrompt: true` (Groq) send `toJSON(r, true)` — minified JSON
+  with `sourceUrl`/`benchMedianNote`/sources-URLs stripped (~53% of the chars,
+  ~6.4K tokens, verified 200 OK). Other providers send the untouched export.
+  Verified live on 2026-09-15 with a real Groq key: gpt-oss-120b/20b accept
+  compact, reject full; Google `gemini-2.5-flash` is the confirmed default
+  (`gemini-3.5-flash` and `gemini-flash-latest` alias 503 on OpenAI-compat).
+- **Google catalog confirmed** (41 chat models via /v1beta/models, key works):
+  `gemini-2.5-flash/pro` (live), `gemini-3-flash-preview`, `gemini-3.1-pro-preview`.
+  No `gemini-3.5-flash` today → default/fallback = `gemini-2.5-flash`.
 - Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push to
   `main` (`VITE_BASE: /luxmily/`). Pushing is the ONLY step needed to change
   providers/models on github.io — but `localStorage` `luxmily-advisor-v1`

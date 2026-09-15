@@ -48,4 +48,19 @@ describe('toJSON', () => {
     expect(json.meta.totalReallocatable).toBeGreaterThan(0)
     expect((json.themes as { id: string }[]).find((t) => t.id === 'travel')).toBeTruthy()
   })
+
+  it('compact keeps all numbers but strips URLs, notes and indentation', () => {
+    const full = toJSON(sample())
+    const compact = toJSON(sample(), true)
+    const f = JSON.parse(full)
+    const c = JSON.parse(compact)
+    expect(c.meta.takeHome).toBe(6800)
+    expect(c.themes.length).toBe(f.themes.length)
+    const cat = c.themes.flatMap((t: { cats: Record<string, unknown>[] }) => t.cats)[0]
+    expect(cat.plan).toBeTypeOf('number')
+    expect(cat.sourceUrl).toBeUndefined()
+    expect(cat.benchMedianNote).toBeUndefined()
+    expect(f.themes[0].cats[0].sourceUrl).toBeTypeOf('string')
+    expect(compact.length).toBeLessThan(full.length * 0.7)
+  })
 })

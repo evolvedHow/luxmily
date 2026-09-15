@@ -53,7 +53,7 @@ max_tokens: 1600
 # never disagree. Provider ids: groq, google, anthropic, openai, openrouter, ollama.
 models:
   groq: openai/gpt-oss-120b
-  google: gemini-3.5-flash
+  google: gemini-2.5-flash
   anthropic: claude-3-5-sonnet-latest
   openai: gpt-4o-mini
   openrouter: meta-llama/llama-3.3-70b-instruct:free

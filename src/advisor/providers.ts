@@ -37,12 +37,10 @@ export interface AdvisorProvider {
   models: AdvisorModel[]
   defaultModel: string
   headers?: Record<string, string>
-  /**
-   * Fetch the provider's ACTUAL model list from its API. Throws on failure;
-   * the caller falls back to `models`. Provider-specific auth/shape lives in
-   * the implementation so each provider's list endpoint gets what it needs.
-   */
+  /** Fetch the provider's ACTUAL model list from its API. Throws on failure → falls back to `models`. */
   fetchModelsList?: (apiKey: string) => Promise<AdvisorModel[]>
+  /** Send a compact (minified, URLs stripped) JSON to fit small token-budget providers (e.g. Groq free tier ~8k TPM). */
+  compactPrompt?: boolean
 }
 
 export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
@@ -57,6 +55,7 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     badge: 'free tier · no card',
     requireKey: true,
     defaultModel: 'openai/gpt-oss-120b',
+    compactPrompt: true,
     models: [
       { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (fast, apt)', free: true },
       { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (lighter)', free: true },
@@ -83,9 +82,12 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     note: 'Gemini free tier key — generous monthly free quota, no card at signup.',
     badge: 'free tier · no card',
     requireKey: true,
-    defaultModel: 'gemini-3.5-flash',
+    defaultModel: 'gemini-2.5-flash',
     models: [
-      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (default)', free: true },
+      { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (default)', free: true },
+      { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)', free: true },
+      { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview)', free: true },
+      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', free: true },
     ],
     fetchModelsList: async (apiKey) => {
       const res = await fetch(

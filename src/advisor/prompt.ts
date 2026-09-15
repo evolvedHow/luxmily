@@ -23,13 +23,15 @@ export function buildLuxmiSystem(): string {
 
 /**
  * User prompt = the exact JSON the user can download, framed for the model.
- * Bracket-agnostic: uses ```json fences, keeps the JSON verbatim.
+ * When `compact` is true (token-budget providers like Groq free tier), the
+ * JSON is minified and URL/note fields are stripped — same numbers, safely
+ * smaller. Bracket-agnostic: uses ```json fences, keeps the JSON verbatim.
  */
-export function buildLuxmiUserPrompt(r: ResolvedBudget): string {
-  const json = toJSON(r)
+export function buildLuxmiUserPrompt(r: ResolvedBudget, compact = false): string {
+  const json = toJSON(r, compact)
   const x = toExport(r)
   return [
-    `Here is my complete budget as a JSON document — same file the app exports. It holds ALL of my inputs and every computed parameter:`,
+    `Here is my complete budget as a JSON document — the same file the app exports${compact ? ' (condensed for size: minified, source links stripped)' : ''}. It holds ALL of my inputs and every computed parameter:`,
     `- income ${Math.round(r.incomeMonthly).toLocaleString()}/mo, take-home cap ${Math.round(r.cap).toLocaleString()}, cohort "${r.cohortLabel}".`,
     `- Adviser context: cohort avg annual spend, totals (plan / observed / reallocatable / over-plan), cap buffer, ok flag.`,
     `- ${x.themes.length} themes, each with share vs cohort benchmark share, allocation, plan total, observed total, plan over-runs, reallocatable, and its distinct sources (with URLs).`,
