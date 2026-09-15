@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Loader2, Sparkles, X } from 'lucide-react'
-import { ADVISOR_PROVIDERS, advisorProvider } from '../advisor/providers'
+import { ADVISOR_PROVIDERS, AdvisorModel, advisorProvider, fetchAvailableModels } from '../advisor/providers'
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from '../advisor/prompt'
 import { streamLuxmi } from '../advisor/stream'
 import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
@@ -22,6 +22,8 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [text, setText] = useState('')
   const [status, setStatus] = useState<'' | 'streaming' | 'error'>('')
   const [error, setError] = useState('')
+  const [liveModels, setLiveModels] = useState<AdvisorModel[]>(provider.models)
+  const [modelsLoading, setModelsLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const proseRef = useRef<HTMLDivElement | null>(null)
 
@@ -40,10 +42,32 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
 
   // A model id persisted from an older build (or another provider) that isn't
   // offered anymore would be sent verbatim to a provider that retired it — reseed
-  // to the current default instead of failing with 400/404.
+  // to the current default instead of failing with 400/404. Skipped while the live
+  // list is loading (the hardcoded fallback may not contain a live-only model).
   useEffect(() => {
-    if (open && !provider.models.some((m) => m.id === modelId)) setModel(defaultModelFor(provider.id))
-  }, [open, providerId])
+    if (open && !modelsLoading && !customModel.trim() && !liveModels.some((m) => m.id === modelId)) {
+      setModel(defaultModelFor(provider.id))
+    }
+  }, [open, providerId, modelsLoading])
+
+  // Pull the provider's ACTUAL model list through its API whenever the key is
+  // present. Falls back to the hardcoded list on failure (CORS, no key, …).
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLiveModels(provider.models)
+    setModelsLoading(true)
+    fetchAvailableModels(provider, apiKey.trim())
+      .then((list) => {
+        if (!cancelled && list.length > 0) setLiveModels(list)
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, providerId, apiKey])
 
   const ask = async () => {
     if (provider.requireKey && !apiKey.trim()) {
@@ -132,7 +156,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
               </div>
             </div>
             <div className="flex-1">
-              <Label>Model</Label>
+              <Label>Model{modelsLoading ? ' (syncing…)' : provider.fetchModelsList ? ' (from your key)' : ''}</Label>
               <select
                 value={customModel.trim() ? '__custom' : modelId}
                 onChange={(e) => (e.target.value === '__custom' ? setCustomModel(modelId) : setModel(e.target.value))}
@@ -140,7 +164,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
                 style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
                 aria-label="Advisor model"
               >
-                {provider.models.map((m) => (
+                {liveModels.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
                     {m.free ? ' (≈free)' : ''}
@@ -161,7 +185,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
             <input
               value={customModel}
               onChange={(e) => setCustomModel(e.target.value)}
-              placeholder={provider.models.map((m) => m.id).join(' · ')}
+              placeholder={liveModels.map((m) => m.id).slice(0, 3).join(' · ')}
               aria-label="Advisor custom model"
               className="w-full rounded-xl border px-2.5 py-2 text-[12px] outline-none tnum"
               style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
@@ -185,7 +209,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
                 style={{ background: C.surface, borderColor: C.border, color: C.text }}
               />
               <div className="mt-1 text-[10.5px]" style={{ color: C.muted }}>
-                Stored only in <span className="tnum">localStorage</span> on this device — the request goes straight to {provider.label}, never through a server.
+                Stored only in <span className="tnum">localStorage</span> on this device — the request goes straight to {provider.label}, never through a server. The model list syncs from {provider.label}'s live catalog with this key.
               </div>
             </div>
           ) : (

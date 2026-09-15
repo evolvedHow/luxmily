@@ -60,6 +60,7 @@ export function AboutSheet({ open, onClose }: { open: boolean; onClose: () => vo
             spending. You tell it one number you can live within — your take-home pay — and it shows you what a
             benchmark-guided, balanced plan looks like inside that number, and what your discovered spending actually
             means.
+            <sup>In memory of Lakshmi Ramaswamy-Ganapathy Iyer</sup>
           </p>
 
           {PRINCIPLES.map((p) => (

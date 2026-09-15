@@ -52,7 +52,7 @@ max_tokens: 1600
 # default. Keep ids in sync with providers.ts so the dropdown and the request
 # never disagree. Provider ids: groq, google, anthropic, openai, openrouter, ollama.
 models:
-  groq: llama-3.3-70b-versatile
+  groq: openai/gpt-oss-120b
   google: gemini-3.5-flash
   anthropic: claude-3-5-sonnet-latest
   openai: gpt-4o-mini

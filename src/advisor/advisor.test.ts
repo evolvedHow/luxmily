@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { LUXMI_CONFIG, advisorDefaultModel, advisorParams, advisorSystem, loadLuxmiConfig } from './config'
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from './prompt'
-import { ADVISOR_PROVIDERS } from './providers'
+import { ADVISOR_PROVIDERS, AdvisorProvider, fetchAvailableModels } from './providers'
 import { ANTHROPIC_DELTA, OPENAI_DELTA, journey } from './stream'
 import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
 import { buildBudget, scaffold } from '../engine/model'
@@ -75,6 +75,64 @@ describe('luxmi settings hygiene (useAdvisor)', () => {
     expect(s.customModel).toBe('')
     expect(s.baseUrl).toBe('')
     expect(s.modelId).toBe(defaultModelFor('google'))
+  })
+})
+
+describe('luxmi live model lists (fetchAvailableModels)', () => {
+  it('falls back to the hardcoded list when the fetch throws', async () => {
+    const provider: AdvisorProvider = {
+      ...ADVISOR_PROVIDERS[0],
+      models: [{ id: 'fallback', label: 'Fallback', free: true }],
+      fetchModelsList: () => Promise.reject(new Error('offline')),
+    }
+    await expect(fetchAvailableModels(provider, 'some-key')).resolves.toEqual(provider.models)
+  })
+
+  it('caches per (provider, key-prefix) so repeated opens do not refetch', async () => {
+    let calls = 0
+    const provider: AdvisorProvider = {
+      ...ADVISOR_PROVIDERS[0],
+      fetchModelsList: async () => {
+        calls++
+        return [{ id: 'live-model', label: 'Live Model', free: true }]
+      },
+    }
+    await fetchAvailableModels(provider, 'key-aaaa')
+    const second = await fetchAvailableModels(provider, 'key-aaaa')
+    expect(calls).toBe(1)
+    expect(second[0].id).toBe('live-model')
+    await fetchAvailableModels(provider, 'key-bbbb')
+    expect(calls).toBe(2)
+  })
+
+  it('parses the Groq catalog shape and excludes non-chat models', async () => {
+    const groq = ADVISOR_PROVIDERS.find((p) => p.id === 'groq')!
+    const ogFetch = globalThis.fetch
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 'openai/gpt-oss-120b' },
+            { id: 'whisper-large-v3' },
+            { id: 'openai/gpt-oss-20b' },
+            { id: 'meta-llama/llama-prompt-guard-2-86m' },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    try {
+      const list = await fetchAvailableModels(groq, 'gsk-key')
+      expect(list.map((m) => m.id)).toEqual(['openai/gpt-oss-120b', 'openai/gpt-oss-20b'])
+    } finally {
+      globalThis.fetch = ogFetch
+    }
+  })
+
+  it('every registered provider keeps a non-empty fallback list', async () => {
+    for (const p of ADVISOR_PROVIDERS) {
+      const list = await fetchAvailableModels({ ...p, fetchModelsList: undefined }, '')
+      expect(list.length).toBeGreaterThan(0)
+    }
   })
 })
 

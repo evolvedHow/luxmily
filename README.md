@@ -135,6 +135,12 @@ Pick a provider + model; free-tier options (no card):
 | OpenAI (GPT) | no free tier | https://platform.openai.com/api-keys |
 | Local · Ollama | **100% free, no key, offline** | install + `ollama pull llama3.2` |
 
+The **model dropdown is live**: the moment you paste a valid key, the app calls
+that provider's catalog endpoint with your key and lists exactly the models you
+can actually use (no stale names, no retired models). Without a key it shows a
+small built-in fallback list. There's also a **Custom model id** box that
+sends any model id verbatim (cleared on provider switch).
+
 **Private operator config — the prompt & model params:** Luxmi's system prompt
 and generation parameters live in **`src/advisor/luxmi.yaml`**. It is compiled
 into the bundle at build time and is **not shown or editable in the app UI**.

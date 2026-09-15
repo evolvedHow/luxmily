@@ -104,8 +104,8 @@ src/theme/tokens.ts      C palette, money(), pct()
 
 ## Testing
 
-- 5 test files, 51 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
-  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (14),
+- 5 test files, 55 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
+  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (18),
   `smoke.test.tsx` (12, real jsdom mount).
 - Smoke tests rely on `aria-label`s: "Household income before tax per month",
   "Zip code (optional)", "Take-home pay per month", `View: ${label}` buttons,
@@ -129,6 +129,18 @@ src/theme/tokens.ts      C palette, money(), pct()
   under the Ask button. `stream.ts` parseError now surfaces the provider's raw
   status/message/type (429 explicitly labeled); requests send
   `accept: text/event-stream`.
+- **Hardcoded model lists are fallbacks only.** Each provider has a
+  `fetchModelsList(apiKey)` (Groq/Google/Anthropic/OpenAI/OpenRouter/Ollama all
+  implement it) that pulls the ACTUAL catalog from the provider API when a key
+  is present, filtered to chat-capable models (Groq excludes whisper/prompt-guard/
+  safeguard/compound; OpenRouter shows only `$0` models, capped at 40; Google
+  only `generateContent` models). `fetchAvailableModels(provider, key)` caches
+  per (provider, key-prefix) and falls back to the hardcoded `models` on
+  failure. AdvisorSheet syncs the dropdown on open/key change (label shows
+  "syncing…" then "from your key").
+- **Groq on 2026-09-15:** `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`
+  are DEPRECATED/404. Live chat models confirmed: `openai/gpt-oss-120b`,
+  `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`, `allam-2-7b`. Default = gpt-oss-120b.
 - Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push to
   `main` (`VITE_BASE: /luxmily/`). Pushing is the ONLY step needed to change
   providers/models on github.io — but `localStorage` `luxmily-advisor-v1`
