@@ -182,7 +182,9 @@ async function handleAdvise(request, env) {
             body: JSON.stringify({ costUsd }),
           }))
           const ledger = await ledgerRes.json()
-          balanceUsd = ledger.balanceUsd
+          const budgetUsd = parseFloat(env.CFAI_BUDGET_USD || '25')
+          const spentUsd = typeof ledger?.spentUsd === 'number' ? ledger.spentUsd : 0
+          balanceUsd = Math.max(0, budgetUsd - spentUsd)
         } catch {
           // DO unavailable (local dev without --local) — still return usage
         }
@@ -281,7 +283,7 @@ export class BalanceDO {
       const { costUsd } = await request.json()
       ledger.spentUsd += costUsd || 0
       await this.state.storage.put('ledger', ledger)
-      return Response.json({ spentUsd: ledger.spentUsd, balanceUsd: 0 })
+      return Response.json({ spentUsd: ledger.spentUsd })
     }
 
     if (url.pathname === '/get') {
