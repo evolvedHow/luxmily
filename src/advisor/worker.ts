@@ -25,7 +25,13 @@ export function workerUrl(): string {
   const nodeProcess = (globalThis as { process?: { env?: Record<string, unknown> } }).process
   const fromProcess = nodeProcess?.env?.VITE_LUXMI_WORKER
   const raw = typeof fromMeta === 'string' ? fromMeta : typeof fromProcess === 'string' ? fromProcess : ''
-  return raw.replace(/\/+$/, '')
+  const trimmed = raw.trim().replace(/\/+$/, '')
+
+  // A scheme-less `host.workers.dev` value (operator typo — no `https://`) would
+  // otherwise resolve as a relative path against the Pages origin and hit a 405.
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
+  const hasPort = trimmed.includes(':') && !hasScheme
+  return hasScheme || hasPort || !trimmed.includes('.') ? trimmed : `https://${trimmed}`
 }
 
 export function isConfigured(): boolean {

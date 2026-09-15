@@ -93,6 +93,13 @@ describe('luxmi worker client', () => {
     expect(workerUrl()).toBe('')
   })
 
+  it('normalizes a scheme-less worker host to https', () => {
+    vi.stubEnv('VITE_LUXMI_WORKER', 'luxmily-worker.vish-ganapathy.workers.dev/')
+    expect(workerUrl()).toBe('https://luxmily-worker.vish-ganapathy.workers.dev')
+    expect(isConfigured()).toBe(true)
+    vi.unstubAllEnvs()
+  })
+
   it('askAdvisor throws when the worker is not configured', async () => {
     await expect(askAdvisor({ system: 's', prompt: 'p', onDelta: () => {} })).rejects.toThrow('worker not configured')
   })
