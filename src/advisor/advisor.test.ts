@@ -3,6 +3,7 @@ import { LUXMI_CONFIG, advisorDefaultModel, advisorParams, advisorSystem, loadLu
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from './prompt'
 import { ADVISOR_PROVIDERS } from './providers'
 import { ANTHROPIC_DELTA, OPENAI_DELTA, journey } from './stream'
+import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
 import { buildBudget, scaffold } from '../engine/model'
 import { resolve } from '../engine/resolve'
 import { cohortById } from '../data/benchmarks'
@@ -35,6 +36,45 @@ describe('luxmi config (private YAML)', () => {
       expect(m.length).toBeGreaterThan(0)
       expect(p.models.map((x) => x.id)).toContain(m)
     }
+  })
+})
+
+describe('luxmi settings hygiene (useAdvisor)', () => {
+  it('clears a stale base URL override when the provider changes', () => {
+    useAdvisor.setState({ baseUrl: 'http://localhost:11434/v1' })
+    useAdvisor.getState().setProvider('google')
+    const s = useAdvisor.getState()
+    expect(s.baseUrl).toBe('')
+    expect(s.modelId).toBe(defaultModelFor('google'))
+  })
+
+  it('seeds a model the chosen provider actually offers', () => {
+    useAdvisor.getState().setProvider('groq')
+    const p = ADVISOR_PROVIDERS.find((x) => x.id === 'groq')!
+    expect(p.models.map((m) => m.id)).toContain(useAdvisor.getState().modelId)
+  })
+
+  it('resolves a default model for every provider that is in its own list', () => {
+    for (const p of ADVISOR_PROVIDERS) {
+      expect(p.models.map((m) => m.id)).toContain(defaultModelFor(p.id))
+    }
+  })
+
+  it('effective model: a typed custom id wins over the picker', () => {
+    const p = ADVISOR_PROVIDERS[0]
+    expect(effectiveModelId(p.id, p.defaultModel, 'x/my-custom-model')).toBe('x/my-custom-model')
+    expect(effectiveModelId(p.id, p.defaultModel, '  ')).toBe(p.defaultModel)
+  })
+
+  it('custom model override is cleared on provider switch (no cross-provider leakage)', () => {
+    useAdvisor.getState().setProvider('groq')
+    useAdvisor.getState().setCustomModel('my/groq-model')
+    expect(useAdvisor.getState().customModel).toBe('my/groq-model')
+    useAdvisor.getState().setProvider('google')
+    const s = useAdvisor.getState()
+    expect(s.customModel).toBe('')
+    expect(s.baseUrl).toBe('')
+    expect(s.modelId).toBe(defaultModelFor('google'))
   })
 })
 

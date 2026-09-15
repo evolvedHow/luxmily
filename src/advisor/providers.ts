@@ -53,7 +53,7 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     models: [
       { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (fast, apt)', free: true },
       { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (snappiest)', free: true },
-      { id: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', free: true },
+      { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (OpenAI Open Model)', free: true },
     ],
   },
   {
@@ -66,10 +66,10 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     note: 'Gemini free tier key — generous monthly free quota, no card at signup.',
     badge: 'free tier · no card',
     requireKey: true,
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-3.5-flash',
     models: [
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', free: true },
-      { id: 'gemini-2.5-flash-preview', label: 'Gemini 2.5 Flash Preview', free: true },
+      { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', free: true },
+      { id: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro', free: true },
     ],
   },
   {
@@ -82,14 +82,14 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     note: 'No free API tier — pay-per-token (a signup credit is often available). Best raw reasoning, priciest.',
     badge: 'paid',
     requireKey: true,
-    defaultModel: 'claude-sonnet-4-6',
+    defaultModel: 'claude-3-5-sonnet-latest',
     headers: {
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     models: [
-      { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', note: 'best reasoning' },
-      { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', note: 'cheap & fast' },
+      { id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet', note: 'best reasoning' },
+      { id: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku', note: 'cheap & fast' },
     ],
   },
   {
@@ -104,7 +104,7 @@ export const ADVISOR_PROVIDERS: AdvisorProvider[] = [
     defaultModel: 'gpt-4o-mini',
     models: [
       { id: 'gpt-4o-mini', label: 'GPT-4o mini', note: 'cheapest GPT' },
-      { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+      { id: 'gpt-4o', label: 'GPT-4o flagship' },
     ],
   },
   {

@@ -143,6 +143,41 @@ Edit `system` (the entire advisor persona/instructions), `temperature`,
 Pages deploy rebuilds with your prompt. Safe defaults kick in if a line is
 missing.
 
+**To change providers/models on the live site (github.io), `git push` to `main`
+is the only step** — `.github/workflows/deploy.yml` rebuilds with
+`VITE_BASE: /luxmily/` and publishes (1–3 min; hard-refresh with
+Ctrl/Cmd+Shift+R to bypass cached assets). No other deploy step. Two caveats:
+- Browser **`localStorage` (`luxmily-advisor-v1`) survives deploys.** If a
+  stale Base URL or an old model id persists from a previous session, requests
+  keep failing even on the new build. Switching provider clears both; or reset
+  cleanly via DevTools → Application → Local Storage → delete
+  `luxmily-advisor-v1`, then reopen ✨.
+- The ✨ dialog has a **Custom model id** box — type any model id your provider
+  actually serves and it wins over the picker instantly (no rebuild needed).
+  It is cleared when you switch provider, so it never leaks to another one.
+
+## Luxmi — troubleshooting
+
+- **The ✨ dialog shows the exact request under the Ask button**
+  (`requests → <endpoint> · model <modelId>`). If the endpoint isn't the one
+  you expect, a stale **Base URL** override is the cause — change the provider
+  to clear it (provider switches drop the override, the custom model id, and
+  reseed the model).
+- **`405` / `404` / network error** ⇒ almost always a leftover Base URL from
+  another provider hitting the wrong host/path, or a model id the provider has
+  retired. Drop your saved Base URL / custom model; the model list reseeds
+  automatically. The error line now shows the provider's own message (and type,
+  e.g. `rate_limit_exceeded` (429) makes it explicit).
+- **`400` "model not found"** ⇒ the model id isn't valid for that provider
+  (misspelled, not released, or decommissioned). Pick from the dropdown.
+- **Network error on OpenAI** ⇒ CORS: browsers reject direct OpenAI calls.
+  Use Groq/Google/Anthropic (<chrome> allows localhost HTTP, GitHub Pages is
+  already HTTPS) or Ollama locally — or proxy through a server.
+- **Nothing happens with Ollama** ⇒ server on port 11434, `OLLAMA_HOST`
+  default, `ollama pull <model>`, base URL `http://localhost:11434/v1`.
+- Bear in mind Apple's web security: WKWebView can block some
+  cross-origin requests regardless of the above.
+
 ## Play with the model
 
 1. Enter income (watch the cohort rail + your US income percentile appear),

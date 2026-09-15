@@ -3,7 +3,7 @@ import { ExternalLink, Loader2, Sparkles, X } from 'lucide-react'
 import { ADVISOR_PROVIDERS, advisorProvider } from '../advisor/providers'
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from '../advisor/prompt'
 import { streamLuxmi } from '../advisor/stream'
-import { useAdvisor } from '../store/useAdvisor'
+import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
 import { useResolved } from '../store/useBudget'
 import { C } from '../theme/tokens'
 
@@ -16,9 +16,9 @@ import { C } from '../theme/tokens'
 
 export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const r = useResolved()
-  const { providerId, modelId, apiKey, baseUrl, setProvider, setModel, setApiKey, setBaseUrl } = useAdvisor()
+  const { providerId, modelId, customModel, apiKey, baseUrl, setProvider, setModel, setCustomModel, setApiKey, setBaseUrl } =
+    useAdvisor()
   const provider = advisorProvider(providerId)
-
   const [text, setText] = useState('')
   const [status, setStatus] = useState<'' | 'streaming' | 'error'>('')
   const [error, setError] = useState('')
@@ -38,7 +38,19 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
     if (status === 'streaming' && proseRef.current) proseRef.current.scrollTop = proseRef.current.scrollHeight
   }, [text, status])
 
+  // A model id persisted from an older build (or another provider) that isn't
+  // offered anymore would be sent verbatim to a provider that retired it — reseed
+  // to the current default instead of failing with 400/404.
+  useEffect(() => {
+    if (open && !provider.models.some((m) => m.id === modelId)) setModel(defaultModelFor(provider.id))
+  }, [open, providerId])
+
   const ask = async () => {
+    if (provider.requireKey && !apiKey.trim()) {
+      setStatus('error')
+      setError(`Add a ${provider.label} API key first — it only ever lives in this browser.`)
+      return
+    }
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
@@ -50,7 +62,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
         kind: provider.kind,
         url: baseUrl.trim() || provider.url,
         apiKey,
-        model: modelId,
+        model: effectiveModelId(provider.id, modelId, customModel),
         system: buildLuxmiSystem(),
         prompt: buildLuxmiUserPrompt(r),
         headers: provider.headers,
@@ -122,10 +134,10 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
             <div className="flex-1">
               <Label>Model</Label>
               <select
-                value={modelId}
-                onChange={(e) => setModel(e.target.value)}
+                value={customModel.trim() ? '__custom' : modelId}
+                onChange={(e) => (e.target.value === '__custom' ? setCustomModel(modelId) : setModel(e.target.value))}
                 className="w-full rounded-xl border px-2.5 py-2 text-[13px] outline-none"
-                style={{ background: C.surface, borderColor: C.border, color: C.text }}
+                style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
                 aria-label="Advisor model"
               >
                 {provider.models.map((m) => (
@@ -134,7 +146,28 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
                     {m.free ? ' (≈free)' : ''}
                   </option>
                 ))}
+                <option value="__custom">Custom model id…</option>
               </select>
+              {customModel.trim() && (
+                <div className="mt-1 text-[10.5px]" style={{ color: C.cap }}>
+                  Using custom model — edit the field below it.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label>Custom model id (optional — overrides the picker)</Label>
+            <input
+              value={customModel}
+              onChange={(e) => setCustomModel(e.target.value)}
+              placeholder={provider.models.map((m) => m.id).join(' · ')}
+              aria-label="Advisor custom model"
+              className="w-full rounded-xl border px-2.5 py-2 text-[12px] outline-none tnum"
+              style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
+            />
+            <div className="mt-1 text-[10.5px]" style={{ color: C.muted }}>
+              Type any model id exactly as your provider lists it (e.g. <span className="tnum">gemini-3.5-flash</span>). It wins over the picker; cleared when you switch provider.
             </div>
           </div>
 
@@ -191,6 +224,9 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
               {error}
             </div>
           )}
+          <div className="mt-1 text-[9.5px] tnum leading-snug" style={{ color: C.muted }}>
+            requests → {baseUrl.trim() || provider.url} · model {effectiveModelId(provider.id, modelId, customModel)}
+          </div>
         </div>
 
         {/* Narrative */}

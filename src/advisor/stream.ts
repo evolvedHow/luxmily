@@ -75,12 +75,19 @@ export const ANTHROPIC_DELTA: DeltaReader = {
 }
 
 async function parseError(res: Response): Promise<string> {
-  try {
-    const j = (await res.json()) as { error?: { message?: string } }
-    return j.error?.message ?? `${res.status} ${res.statusText}`
-  } catch {
-    return `${res.status} ${res.statusText}`
-  }
+  const raw = await res.text()
+  const detail = (() => {
+    try {
+      const j = JSON.parse(raw) as { error?: { message?: string; type?: string; status?: string } }
+      const msg = j.error?.message
+      if (!msg) return undefined
+      const tag = j.error?.type ?? j.error?.status
+      return tag ? `${msg} (${tag})` : msg
+    } catch {
+      return undefined
+    }
+  })()
+  return detail ?? `${res.status} ${res.statusText}${res.status === 429 ? ' — rate limited, wait a bit and retry' : ''}`
 }
 
 /** Reads an SSE body, feeding parsed text deltas through onDelta. */
@@ -130,6 +137,7 @@ export async function streamLuxmi(req: StreamRequest): Promise<string> {
 
   const headers: Record<string, string> = {
     'content-type': 'application/json',
+    accept: 'text/event-stream',
     ...(req.kind === 'anthropic'
       ? { 'x-api-key': req.apiKey, ...(req.headers ?? {}) }
       : req.apiKey

@@ -104,8 +104,8 @@ src/theme/tokens.ts      C palette, money(), pct()
 
 ## Testing
 
-- 5 test files, 46 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
-  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (9),
+- 5 test files, 51 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
+  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (14),
   `smoke.test.tsx` (12, real jsdom mount).
 - Smoke tests rely on `aria-label`s: "Household income before tax per month",
   "Zip code (optional)", "Take-home pay per month", `View: ${label}` buttons,
@@ -118,6 +118,22 @@ src/theme/tokens.ts      C palette, money(), pct()
 - `index.html` title = `Luxmi.ly`. Branding strings: "Luxmi.ly" (wordmark,
   export `app`, print header).
 - `noUnusedLocals`/`noUnusedParameters` are on — dead code fails the build.
+- **Advisor settings hygiene:** `useAdvisor.setProvider` clears the persisted
+  `baseUrl` override (stale override = classic 405/404 source) **and the
+  `customModel` id**, reseeding `modelId` via exported `defaultModelFor(providerId)`
+  (YAML `models` win, else registry `defaultModel`). The UI adds a **Custom
+  model id** text field — `effectiveModelId()` = typed custom id, else picker
+  (dropdown has a "Custom model id…" sentinel). Keeping the YAML `models:`
+  block in sync with `providers.ts` is enforced by a test. AdvisorSheet reseeds
+  invalid persisted model ids on open and prints the effective endpoint+model
+  under the Ask button. `stream.ts` parseError now surfaces the provider's raw
+  status/message/type (429 explicitly labeled); requests send
+  `accept: text/event-stream`.
+- Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push to
+  `main` (`VITE_BASE: /luxmily/`). Pushing is the ONLY step needed to change
+  providers/models on github.io — but `localStorage` `luxmily-advisor-v1`
+  survives deploys, so a browser with a stale baseUrl/model id keeps failing
+  even on the new build (provider switch clears both).
 - Deleted already as cleanup: `pacing.ts`, flywheel components/old store files,
   `SPRING`/`LOCK_LABEL` tokens, unused `themeId` export, unused `framer-motion`
   dependency.
