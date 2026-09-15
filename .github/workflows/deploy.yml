@@ -34,8 +34,12 @@ jobs:
         env:
           VITE_BASE: /luxmily/
           # The Cloudflare Worker that proxies Luxmi's AI calls to Cloudflare
-          # Workers AI. Set this to your deployed worker's URL.
-          VITE_LUXMI_WORKER: ${{ vars.LUXMI_WORKER_URL }}
+          # Workers AI. Store the deployed worker's URL (no trailing slash) in
+          # a GitHub Actions VARIABLE named LUXMI_WORKER_URL, e.g.
+          #   https://luxmily-worker.vish-ganapathy.workers.dev
+          # (The Actions `secrets.*` fallback is also accepted for backwards
+          # compatibility with setups that put it in secrets instead.)
+          VITE_LUXMI_WORKER: ${{ secrets.LUXMI_WORKER_URL || vars.LUXMI_WORKER_URL }}
 
       - uses: actions/configure-pages@v5
 
