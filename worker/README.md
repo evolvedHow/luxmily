@@ -44,7 +44,7 @@ npx wrangler deploy
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `CFAI_MODEL` | `@cf/qwen/qwen3-30b-a3b-fp8` | Workers AI model id to serve |
+| `CFAI_MODEL` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | Workers AI model id to serve |
 | `CFAI_BUDGET_USD` | `25` | Budget cap in USD (shown as balance in the UI) |
 | `CFAI_IN_PRICE` | `0.051` | Per-1M input-token price in USD |
 | `CFAI_OUT_PRICE` | `0.335` | Per-1M output-token price in USD |
@@ -53,10 +53,10 @@ Reasonable chat models on Workers AI (2026, price in $ per 1M in/out tokens):
 
 | Model | In | Out | Notes |
 |-------|----|-----|-------|
-| `@cf/qwen/qwen3-30b-a3b-fp8` | 0.051 | 0.335 | Default — strong, cheap MoE |
+| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 0.293 | 2.253 | Default — highest quality, answers directly (no reasoning phase) |
+| `@cf/qwen/qwen3-30b-a3b-fp8` | 0.051 | 0.335 | Cheap MoE, but "thinks" before answering |
 | `@cf/meta/llama-3.1-8b-instruct-fp8-fast` | 0.045 | 0.384 | Fast all-rounder |
 | `@cf/zai-org/glm-4.7-flash` | 0.060 | 0.400 | Good quality per neuron |
-| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 0.293 | 2.253 | Highest quality, pricey |
 
 > **How pricing works:** Workers AI bills in **neurons** ($0.011 per 1,000,
 > with a 10,000-neuron/day free allowance per account; resets 00:00 UTC). The

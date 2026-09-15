@@ -61,7 +61,7 @@ worker/                  Cloudflare Worker (Workers AI proxy) + Durable Object l
   calls `<account>/ai/v1/chat/completions` (Workers AI's OpenAI-compatible
   endpoint — the OpenAI SSE shape the client already parsed, no SDK needed).
 - **The model is operator config, not UI:** `CFAI_MODEL` env on the Worker
-  (default `@cf/qwen/qwen3-30b-a3b-fp8`). `src/advisor/luxmi.yaml` keeps only
+  (default `@cf/meta/llama-3.3-70b-instruct-fp8-fast`). `src/advisor/luxmi.yaml` keeps only
   the system prompt + `temperature`/`max_tokens` (still the PRIVATE operator
   config, compiled in at build time).
 - **Balance is an estimate:** Workers AI exposes no live balance API (usage is
