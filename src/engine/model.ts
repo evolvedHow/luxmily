@@ -4,11 +4,9 @@ import {
   THEMES,
   themeShare,
   type CatDef,
-  type ThemeDef,
 } from '../data/benchmarks'
 import type { Budget, BudgetCategory, BudgetTheme, LockMode } from './types'
 
-export const themeId = (t: ThemeDef) => t.id
 export const catKey = (themeId: string, catId: string) => `${themeId}.${catId}`
 
 export interface Scaffold {

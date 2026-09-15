@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { RotateCcw, Sparkles } from 'lucide-react'
+import { Info, RotateCcw, Sparkles } from 'lucide-react'
+import { AboutSheet } from './components/AboutSheet'
 import { AdvisorSheet } from './components/AdvisorSheet'
 import { CapCard } from './components/CapCard'
 import { ExportMenu } from './components/ExportMenu'
@@ -22,6 +23,7 @@ function Dashboard() {
   const view = useBudget((s) => s.view)
   const reset = useBudget((s) => s.reset)
   const [advisorOpen, setAdvisorOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   return (
     <div>
@@ -39,6 +41,9 @@ function Dashboard() {
           <div className="flex items-center gap-1.5">
             <IconBtn onClick={() => setAdvisorOpen(true)} label="Ask Luxmi">
               <Sparkles size={15} />
+            </IconBtn>
+            <IconBtn onClick={() => setAboutOpen(true)} label="About">
+              <Info size={15} />
             </IconBtn>
             <IconBtn onClick={reset} label="Reset to baseline">
               <RotateCcw size={15} />
@@ -77,6 +82,9 @@ function Dashboard() {
 
       {/* Luxmi — AI budget advisor */}
       <AdvisorSheet open={advisorOpen} onClose={() => setAdvisorOpen(false)} />
+
+      {/* About — the philosophy, one screen */}
+      <AboutSheet open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   )
 }

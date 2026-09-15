@@ -121,4 +121,15 @@ describe('App — an optimizer, not a tracker', () => {
     expect(screen.getByText(/Download CSV/)).toBeTruthy()
     expect(screen.getByText(/Print \/ PDF/)).toBeTruthy()
   })
+
+  it('opens the About sheet and shows the philosophy + cohort standing', async () => {
+    await onboard()
+    fireEvent.click(screen.getByLabelText('About'))
+    expect(screen.getByText(/how the optimizer thinks/)).toBeTruthy()
+    expect(screen.getByText(/Top-down, not bottom-up/)).toBeTruthy()
+    expect(screen.getByText(/No credit-card debt/)).toBeTruthy()
+    expect(screen.getByText(/Where you stand/)).toBeTruthy()
+    expect(screen.getByText(/top ~22% of households/)).toBeTruthy()
+    expect(screen.getByText(/Top 1%/)).toBeTruthy()
+  })
 })

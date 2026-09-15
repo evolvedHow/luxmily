@@ -16,16 +16,6 @@ export const C = {
   cap: '#D9A07E',
 } as const
 
-/** Spring curve used for every transition in the app. */
-export const SPRING = { type: 'spring', stiffness: 300, damping: 30 } as const
-
-export const LOCK_LABEL: Record<string, string> = {
-  hard: 'Hard Lock',
-  floor: 'Floor',
-  ceiling: 'Ceiling',
-  elastic: 'Elastic',
-}
-
 export function money(n: number, decimals = 0): string {
   return n.toLocaleString('en-US', {
     style: 'currency',

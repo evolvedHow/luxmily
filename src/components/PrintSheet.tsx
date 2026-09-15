@@ -34,6 +34,26 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
         </Section>
       )}
 
+      {/* Benchmark basis — the "where every average comes from" note at the top of
+          the themes (page 2). Averages are keyed to this income cohort, not global. */}
+      <div
+        style={{
+          margin: '12px 0 4px',
+          padding: '8px 10px',
+          border: '1px solid #ccc',
+          borderRadius: 6,
+          fontSize: 9.5,
+          color: '#333',
+          background: '#f7f7f7',
+        }}
+      >
+        <strong>Benchmark basis</strong> — every average below is the typical spend for your income cohort (
+        {r.cohortLabel}): category averages from <strong>BLS Consumer Expenditure Survey 2024</strong> by income
+        quintile, savings/retirement rails from <strong>FRED PSAVERT</strong> and <strong>Vanguard How America
+        Saves</strong>, Travel from the Luxmi.ly discretionary guide. Averages steer the starting plan — they are
+        reference rails, not a mandate; your plan sets your envelope.
+      </div>
+
       {r.themes.map((t) => (
         <Section
           key={t.id}

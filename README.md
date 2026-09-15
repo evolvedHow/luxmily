@@ -69,15 +69,32 @@ src/engine/       pure TypeScript — no React, no DOM, no side effects
   solver.ts         clamped proportional allocation (shares always → 1.0)
   resolve.ts        the single entry point the UI calls
   model.ts          scaffold: benchmarks → starting plan
-src/data/benchmarks.ts   cohorts, themes, categories, shares, sources (+ links)
-src/store/useBudget.ts   zustand + localStorage (key: luxmily-budget-v1)
-src/export/        JSON, CSV (Google Sheets), print/PDF
-src/components/    UI
+src/data/         benchmarks.ts (cohorts, themes, shares, sources + links)
+                  context.ts  (About sheet: US-income standing + net worth refs)
+src/store/        useBudget.ts (zustand + localStorage: luxmily-budget-v1)
+                  useAdvisor.ts (Luxmi provider/model/key, luxmily-advisor-v1)
+src/export/       JSON, CSV (Google Sheets), print/PDF
+src/advisor/      lib designed exclusively for the public (openai/anthropic)
+  providers.ts      registry: Groq, Gemini, Anthropic, OpenAI, OpenRouter, Ollama
+  luxmi.yaml        PRIVATE operator prompt + model params (not in the UI)
+  config.ts         typed YAML loader with safe defaults
+  prompt.ts         user prompt = the app's own exported JSON (same file you download)
+  stream.ts         SSE streaming for both OpenAI- and Anthropic-shaped APIs
+src/components/   UI (incl. AdvisorSheet + AboutSheet)
 ```
 
 `engine/` imports nothing from React. Every number on screen comes from one call
 to `resolve(budget)` — there is no allocation math in any component. That
 constraint is what keeps the model testable in isolation.
+
+## About
+
+The ⓘ button opens the About sheet — the one-screen pitch for how the app
+thinks: top-down (a cap, then themed shares, then categories), pay-yourself-
+first rails, no credit-card debt, red-as-information, and averages as reference,
+never a mandate. It also shows (approximate, clearly labelled) where the user's
+income cohort stands among US households and where the familiar "top 10% / top
+1%" net-worth lines sit in dollars — with sources.
 
 ## Publishing
 
@@ -121,4 +138,6 @@ missing.
    tells you to take it from elsewhere.
 4. Switch to **Observed**, enter $6K on Groceries, and see it as a % of cap, vs
    your plan, and what spending less frees up to reallocate.
-5. Export CSV → open in Google Sheets, or Print/Save as PDF.
+5. Export CSV → open in Google Sheets, or Print/Save as PDF — page 2 of the
+   report opens with the benchmark-basis note so the averages carry their cohort.
+6. ✨ Ask Luxmi for a narrative, or ⓘ read the philosophy behind the layout.
