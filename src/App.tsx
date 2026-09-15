@@ -1,4 +1,6 @@
-import { RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import { RotateCcw, Sparkles } from 'lucide-react'
+import { AdvisorSheet } from './components/AdvisorSheet'
 import { CapCard } from './components/CapCard'
 import { ExportMenu } from './components/ExportMenu'
 import { Onboarding } from './components/Onboarding'
@@ -19,6 +21,7 @@ function Dashboard() {
   const r = useResolved()
   const view = useBudget((s) => s.view)
   const reset = useBudget((s) => s.reset)
+  const [advisorOpen, setAdvisorOpen] = useState(false)
 
   return (
     <div>
@@ -34,6 +37,9 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <IconBtn onClick={() => setAdvisorOpen(true)} label="Ask Luxmi">
+              <Sparkles size={15} />
+            </IconBtn>
             <IconBtn onClick={reset} label="Reset to baseline">
               <RotateCcw size={15} />
             </IconBtn>
@@ -68,6 +74,9 @@ function Dashboard() {
 
       {/* Print report — hidden on screen, rendered in print media */}
       <PrintSheet r={r} />
+
+      {/* Luxmi — AI budget advisor */}
+      <AdvisorSheet open={advisorOpen} onClose={() => setAdvisorOpen(false)} />
     </div>
   )
 }

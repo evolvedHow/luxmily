@@ -85,6 +85,33 @@ constraint is what keeps the model testable in isolation.
 (`VITE_BASE=/luxmily/`) → https://evolvedhow.github.io/luxmily/. The print/
 "Save as PDF" report and the CSV export are browser-native; there is no server.
 
+## Luxmi — the AI budget advisor
+
+The ✨ button calls Luxmi, an LLM that reads your **entire budget as the exact
+JSON the app exports** (`toJSON`) and writes a narrative: balance, theme-by-
+theme benchmark comparison, pay-yourself-first health, anomalies, and 3–7
+dollar-level tips. The request goes **directly from your browser to the
+provider** — the API key lives only in `localStorage`.
+
+Pick a provider + model; free-tier options (no card):
+
+| Provider | Free tier | Get a key |
+|---|---|---|
+| Groq | free, no card | https://console.groq.com/keys |
+| Google (Gemini) | free tier, no card | https://aistudio.google.com/apikey |
+| OpenRouter | `:free` models | https://openrouter.ai/keys |
+| Anthropic (Claude) | no free tier | https://console.anthropic.com/ |
+| OpenAI (GPT) | no free tier | https://platform.openai.com/api-keys |
+| Local · Ollama | **100% free, no key, offline** | install + `ollama pull llama3.2` |
+
+**Private operator config — the prompt & model params:** Luxmi's system prompt
+and generation parameters live in **`src/advisor/luxmi.yaml`**. It is compiled
+into the bundle at build time and is **not shown or editable in the app UI**.
+Edit `system` (the entire advisor persona/instructions), `temperature`,
+`max_tokens`, and per-provider `models` defaults, then commit + push — the
+Pages deploy rebuilds with your prompt. Safe defaults kick in if a line is
+missing.
+
 ## Play with the model
 
 1. Enter income, watch the cohort rail appear, build.

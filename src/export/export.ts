@@ -1,3 +1,4 @@
+import { cohortById } from '../data/benchmarks'
 import type { ResolvedBudget, ResolvedCategory, ResolvedTheme } from '../engine/types'
 
 export interface ExportCategory {
@@ -10,9 +11,11 @@ export interface ExportCategory {
   observed: number
   observedPct: number
   delta: number
+  deltaPct: number
   surplus: number
   benchAvg: number
   benchMedian?: number
+  benchMedianNote?: string
   benchSource: string
   sourceUrl?: string
 }
@@ -40,12 +43,17 @@ export interface ExportBudget {
   meta: {
     incomeMonthly: number
     takeHome: number
+    cap: number
     cohortId: string
     cohortLabel: string
+    cohortAvgAnnualSpend: number
+    cohortBand: string
     ok: boolean
     buffer: number
     totalPlan: number
     totalObserved: number
+    totalPlanOver: number
+    observedOverPlan: number
     totalReallocatable: number
   }
   payYourselfFirst: ExportCategory[]
@@ -63,9 +71,11 @@ function cat(r: ResolvedCategory): ExportCategory {
     observed: r.observed,
     observedPct: Math.round(r.observedPct * 1000) / 10,
     delta: Math.round(r.delta),
+    deltaPct: r.deltaPct > 0 && r.delta === 0 ? 0 : Math.round(r.deltaPct * 1000) / 10,
     surplus: Math.round(r.surplus),
     benchAvg: r.benchAvg,
     benchMedian: r.benchMedian,
+    benchMedianNote: r.benchMedianNote,
     benchSource: r.benchSource,
     sourceUrl: r.benchUrl,
   }
@@ -91,18 +101,24 @@ function theme(t: ResolvedTheme): ExportTheme {
 }
 
 export function toExport(r: ResolvedBudget): ExportBudget {
+  const cohort = cohortById(r.cohortId)
   return {
     app: 'Luxmi.ly',
     exportedAt: new Date().toISOString(),
     meta: {
       incomeMonthly: r.incomeMonthly,
       takeHome: r.takeHome,
+      cap: r.cap,
       cohortId: r.cohortId,
       cohortLabel: r.cohortLabel,
+      cohortAvgAnnualSpend: cohort.avgAnnualSpend,
+      cohortBand: cohort.incomeMin === 0 ? `up to ${cohort.incomeMax.toFixed(0)}/mo` : `${cohort.incomeMin.toFixed(0)}–${cohort.incomeMax === Infinity ? '+' : cohort.incomeMax.toFixed(0)}/mo`,
       ok: r.ok,
       buffer: r.buffer,
       totalPlan: r.totalPlan,
       totalObserved: r.totalObserved,
+      totalPlanOver: r.totalPlanOver,
+      observedOverPlan: r.observedOverPlan,
       totalReallocatable: r.reallocatable,
     },
     payYourselfFirst: r.payFirst.map(cat),
