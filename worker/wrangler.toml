@@ -29,6 +29,7 @@ CFAI_OUT_PRICE = "0.335"
 [durable_objects]
 bindings = [{ name = "BALANCE", class_name = "BalanceDO" }]
 
+# Free plan requires SQLite-backed Durable Objects → new_sqlite_classes
 [[migrations]]
 tag = "v1"
-new_classes = ["BalanceDO"]
+new_sqlite_classes = ["BalanceDO"]
