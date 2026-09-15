@@ -2,7 +2,7 @@
  * Luxmi advisor API client.
  *
  * Talks to the Cloudflare Worker (`VITE_LUXMI_WORKER`) which proxies
- * requests to a Modal Dedicated Endpoint. The browser never holds an API key.
+ * requests to Cloudflare Workers AI. The browser never holds an API key.
  *
  * Exports:
  *   WORKER_URL  — the worker origin (empty string = not configured)

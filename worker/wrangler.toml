@@ -3,23 +3,27 @@ main = "src/index.js"
 compatibility_date = "2024-10-01"
 
 # ── Environment ─────────────────────────────────────────────────────
-# Fill these in for your Modal Dedicated Endpoint.
-# Wrangler secrets (not committed): MODAL_PROXY_TOKEN
-#   echo "wk-...ws-..." | npx wrangler secret put MODAL_PROXY_TOKEN
+# Talks to Cloudflare Workers AI over its OpenAI-compatible endpoint:
+#   https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1/chat/completions
+#
+# Wrangler secrets (NOT committed — set with `npx wrangler secret put`):
+#   CF_ACCOUNT_ID    = Cloudflare account id (dash.cloudflare.com → profile)
+#   CF_AI_API_TOKEN  = API token with "Workers AI — Edit" permission
+#     echo "<account-id>" | npx wrangler secret put CF_ACCOUNT_ID
+#     echo "<api-token>"   | npx wrangler secret put CF_AI_API_TOKEN
 #
 # Wrangler vars (safe to commit, non-sensitive):
-#   MODAL_ENDPOINT   = your Modal Dedicated Endpoint URL (no trailing /v1/...)
-#   MODAL_MODEL      = the model name your endpoint serves (e.g. "qwen-2.5-72b")
-#   MODAL_BUDGET_USD = your monthly budget cap (for estimated balance display)
-#   MODAL_IN_PRICE   = per-1M input-token price in USD (default: 0.12)
-#   MODAL_OUT_PRICE  = per-1M output-token price in USD (default: 0.36)
+#   CFAI_MODEL      = Workers AI model id (see developers.cloudflare.com/workers-ai/models/)
+#   CFAI_BUDGET_USD = budget cap in USD (for estimated balance display)
+#   CFAI_IN_PRICE   = per-1M input-token price in USD (default: 0.051)
+#   CFAI_OUT_PRICE  = per-1M output-token price in USD (default: 0.335)
 # ────────────────────────────────────────────────────────────────────
 
 [vars]
-MODAL_MODEL = "qwen-2.5-72b"
-MODAL_BUDGET_USD = "50"
-MODAL_IN_PRICE = "0.12"
-MODAL_OUT_PRICE = "0.36"
+CFAI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+CFAI_BUDGET_USD = "25"
+CFAI_IN_PRICE = "0.051"
+CFAI_OUT_PRICE = "0.335"
 
 # ── Durable Object ──────────────────────────────────────────────────
 [durable_objects]

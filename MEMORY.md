@@ -49,39 +49,43 @@ src/export/export.ts     toExport/toJSON/toCSV/print (Optimizer columns)
 src/components/          CapCard, PayFirstStrip, ThemeCard, ViewpointToggle,
                          ExportMenu, PrintSheet, Onboarding, AdvisorSheet, AboutSheet
 src/theme/tokens.ts      C palette, money(), pct()
-worker/                  Cloudflare Worker (Modal proxy) + Durable Object ledger
+worker/                  Cloudflare Worker (Workers AI proxy) + Durable Object ledger
 ```
 
-## Luxmi — the AI advisor (Modal + Cloudflare Worker)
+## Luxmi — the AI advisor (Cloudflare Workers AI)
 
 - ✨ header button → `AdvisorSheet` bottom sheet. One Ask button, streamed SSE
-  narrative, per-request cost + remaining Modal budget in the footer.
-- **Pipeline: browser → Cloudflare Worker (`worker/`) → Modal Dedicated
-  Endpoint.** The Worker holds the Modal proxy token (`wk-….ws-…`) as a
-  `wrangler secret` and injects `Authorization: Bearer <token>` on calls to
-  `<MODAL_ENDPOINT>/v1/chat/completions` (OpenAI-compatible, so no Modal app
-  code is needed — the operator creates the Endpoint in the Modal dashboard).
-- **The model is operator config, not UI:** `MODAL_MODEL` env on the Worker.
-  `src/advisor/luxmi.yaml` keeps only the system prompt + `temperature`/
-  `max_tokens` (still the PRIVATE operator config, compiled in at build time).
-- **Balance is an estimate, not Modal's number:** Modal exposes no live balance
-  API (billing SDK is usage reports only). The Worker keeps a **Durable Object
-  ledger** (`BalanceDO`, key `luxmi-budget`, persists `spentUsd`). Each request
-  computes cost from `usage` tokens × `MODAL_IN_PRICE`/`MODAL_OUT_PRICE`
-  (per-1M USD, defaults 0.12/0.36) and appends an SSE trailer event
-  `{"type":"usage", usage, costUsd, balanceUsd}` after `[DONE]`. `GET /api/balance`
-  returns `{budgetUsd, spentUsd, balanceUsd}` from `MODAL_BUDGET_USD` (default 50).
+  narrative, per-request cost + remaining AI budget in the footer.
+- **Pipeline: browser → Cloudflare Worker (`worker/`) → Cloudflare Workers AI.**
+  The Worker holds `CF_ACCOUNT_ID` + `CF_AI_API_TOKEN` as `wrangler` secrets and
+  calls `<account>/ai/v1/chat/completions` (Workers AI's OpenAI-compatible
+  endpoint — the OpenAI SSE shape the client already parsed, no SDK needed).
+- **The model is operator config, not UI:** `CFAI_MODEL` env on the Worker
+  (default `@cf/qwen/qwen3-30b-a3b-fp8`). `src/advisor/luxmi.yaml` keeps only
+  the system prompt + `temperature`/`max_tokens` (still the PRIVATE operator
+  config, compiled in at build time).
+- **Balance is an estimate:** Workers AI exposes no live balance API (usage is
+  billed in neurons: $0.011/1k, 10k free/day per account). The Worker keeps a
+  **Durable Object ledger** (`BalanceDO`, key `luxmi-budget`, persists
+  `spentUsd`). Each request computes cost from `usage` tokens ×
+  `CFAI_IN_PRICE`/`CFAI_OUT_PRICE` (per-1M USD, defaults 0.051/0.335); if
+  Workers AI doesn't echo `usage` in the stream it falls back to a chars/4 token
+  estimate and sets `estimated:true` in the SSE trailer
+  `{"type":"usage", usage, costUsd, balanceUsd, estimated}` appended after
+  `[DONE]`. `GET /api/balance` returns `{budgetUsd, spentUsd, balanceUsd}` from
+  `CFAI_BUDGET_USD` (default 25).
 - Frontend reads `VITE_LUXMI_WORKER` for the Worker origin (`src/advisor/worker.ts`
   `workerUrl()`, inlined by Vite in the browser; falls back to `process.env` so
   vitest can `vi.stubEnv`). Dashboard header shows `BalanceBadge` ("≈ $X left of
-  $Y Modal budget", colored green → tension → red) polled every 60s; hidden when
+  $Y AI budget", colored green → tension → red) polled every 60s; hidden when
   the Worker URL isn't set.
 - Deleted in the overhaul: `src/advisor/providers.ts`, `src/advisor/stream.ts`,
   `src/store/useAdvisor.ts` (provider/model/key picker is gone — no user-facing
   model selection anymore). `luxmily-advisor-v1` localStorage key is obsolete.
-- Note: Modal's OpenAI-compat streaming only returns `usage` when
-  `stream_options.include_usage` is set — the Worker forces both that and
-  `stream: true`, and injects `model` (clients never send a model id).
+- Note: Workers AI's OpenAI-compat stream may not echo `usage` even with
+  `stream_options.include_usage` set — the Worker forces both that and
+  `stream: true`, and injects `model` (clients never send a model id), with the
+  chars/4 fallback as the safety net.
 
 ## About sheet (added last)
 
@@ -134,11 +138,12 @@ worker/                  Cloudflare Worker (Modal proxy) + Durable Object ledger
 - `index.html` title = `Luxmi.ly`. Branding strings: "Luxmi.ly" (wordmark,
   export `app`, print header).
 - `noUnusedLocals`/`noUnusedParameters` are on — dead code fails the build.
-- **Modal has NO live balance API** (SDK = usage reports only). So the "≈ $X
-  left of $Y Modal budget" header badge and the ✨ per-request cost are
-  **estimated from a Worker-side ledger** — budget minus sum of
-  usage-tokens×price (per-1M in/out prices are `MODAL_IN_PRICE`/`MODAL_OUT_PRICE`,
-  budget `MODAL_BUDGET_USD`). Tune those for the endpoint's real billing.
+- **Workers AI has NO live balance API** (usage is billed in neurons — $0.011
+  per 1,000, with a 10,000/day free allowance that resets at 00:00 UTC). So the
+  "≈ $X left of $Y AI budget" header badge and the ✨ per-request cost are
+  **estimated from a Worker-side ledger** — budget minus sum of usage-tokens×
+  price (per-1M in/out prices are `CFAI_IN_PRICE`/`CFAI_OUT_PRICE`, budget
+  `CFAI_BUDGET_USD`). Tune those to the model's real rates.
 - The Worker is OpenAI-compat-only now: no Anthropic schema, no providers
   registry, no per-key model fetch, no compact Groq prompt, no Ollama path.
   `toJSON(r, compact)` in export.ts still supports the compact mode (kept +
@@ -148,10 +153,11 @@ worker/                  Cloudflare Worker (Modal proxy) + Durable Object ledger
 - Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push
   to `main` (`VITE_BASE: /luxmily/`, `VITE_LUXMI_WORKER: ${{ vars.LUXMI_WORKER_URL }}`
   — set that repo variable to the worker URL). The Worker deploys independently
-  from `worker/` (`npx wrangler deploy`); `MODAL_PROXY_TOKEN` is a secret.
+  from `worker/` (`npx wrangler deploy`); `CF_ACCOUNT_ID`/`CF_AI_API_TOKEN` are
+  secrets, model/budget/prices are `wrangler.toml` vars.
 - Deleted already as cleanup: `pacing.ts`, flywheel components/old store files,
   `SPRING`/`LOCK_LABEL` tokens, unused `themeId` export, unused `framer-motion`
-  dependency; and in the Modal overhaul `src/advisor/providers.ts`,
+  dependency; and in the Workers AI overhaul `src/advisor/providers.ts`,
   `src/advisor/stream.ts`, `src/store/useAdvisor.ts`.
 - Commit message style: short imperative sentence (e.g. "Add Luxmi AI budget
   advisor (private YAML prompt + full-budget JSON input)").
@@ -164,5 +170,5 @@ worker/                  Cloudflare Worker (Modal proxy) + Durable Object ledger
 - Per-ZIP precision: swap the embedded `metro-cola.ts` table for a runtime
   ACS/geocoder provider behind the same `locationForZip` shape (needs a Census
   API key and CORS, which is why it's embedded today).
-- If Modal ever exposes a real account balance/credits endpoint, point the
-  Worker's `/api/balance` at it and drop the ledger estimate.
+- If Workers AI ever exposes a live usage/balance signal from the Worker
+  runtime, point `/api/balance` at it and drop the ledger estimate.

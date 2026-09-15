@@ -120,9 +120,9 @@ function IconBtn({
 }
 
 /**
- * Modal spend badge shown under the header on the dashboard. The worker keeps
- * a Durable Object ledger (budget − accumulated per-request cost, estimated
- * from token usage) because Modal exposes no live balance API. Purely
+ * AI spend badge shown under the header on the dashboard. The worker keeps a
+ * Durable Object ledger (budget − accumulated per-request cost, estimated from
+ * token usage) because Workers AI exposes no live balance API. Purely
  * decorative — hidden entirely when the worker isn't configured.
  */
 function BalanceBadge() {
@@ -150,7 +150,7 @@ function BalanceBadge() {
 
   return (
     <div className="mt-1 text-[10.5px] tnum" style={{ color }}>
-      ≈ ${balance.balanceUsd.toFixed(2)} left of ${balance.budgetUsd.toFixed(0)} Modal budget
+      ≈ ${balance.balanceUsd.toFixed(2)} left of ${balance.budgetUsd.toFixed(0)} AI budget
     </div>
   )
 }

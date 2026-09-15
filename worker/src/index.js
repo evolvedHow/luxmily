@@ -1,11 +1,13 @@
 /**
  * Luxmi.ly Cloudflare Worker
  *
- * Sits between the GitHub Pages frontend and a Modal Dedicated Endpoint.
+ * Sits between the GitHub Pages frontend and Cloudflare Workers AI.
  * Responsibilities:
  *   - CORS for the Pages origin
- *   - /api/advise  POST  → proxy Chat Completions to Modal, inject Bearer token,
- *                            append a usage trailer so the frontend knows the cost.
+ *   - /api/advise  POST  → proxy OpenAI-compatible Chat Completions to Workers
+ *                            AI (`/ai/v1/chat/completions`), authenticate with
+ *                            a Cloudflare API token held as a secret, and append
+ *                            a usage trailer so the frontend knows the cost.
  *   - /api/balance  GET  → return the Durable Object ledger (budget − accumulated spend).
  */
 
@@ -48,8 +50,10 @@ export default {
 // ── /api/advise ────────────────────────────────────────────────────
 
 async function handleAdvise(request, env) {
-  if (!env.MODAL_ENDPOINT || !env.MODAL_PROXY_TOKEN) {
-    return json({ error: 'Modal endpoint not configured.' }, 503)
+  const accountId = env.CF_ACCOUNT_ID
+  const apiToken = env.CF_AI_API_TOKEN
+  if (!accountId || !apiToken) {
+    return json({ error: 'Workers AI not configured.' }, 503)
   }
 
   // ── Parse & re-shape the client body ──────────────────────────────
@@ -60,20 +64,27 @@ async function handleAdvise(request, env) {
     return json({ error: 'Invalid JSON body.' }, 400)
   }
 
+  // Fallback estimate of prompt tokens (chars/4) used only if Workers AI
+  // doesn't echo `usage` in the stream. Approximate; the UI already labels
+  // these figures with "≈".
+  const promptChars = JSON.stringify(body.messages || []).length
+
   // Force streaming + usage tracking. Inject model from env so the
   // client never needs to know it.
   body.stream = true
   body.stream_options = { include_usage: true }
-  if (env.MODAL_MODEL) body.model = env.MODAL_MODEL
+  if (env.CFAI_MODEL) body.model = env.CFAI_MODEL
 
-  // ── Forward to Modal ─────────────────────────────────────────────
-  const endpoint = env.MODAL_ENDPOINT.replace(/\/+$/, '')
-  const res = await fetch(`${endpoint}/v1/chat/completions`, {
+  // ── Forward to Cloudflare Workers AI (OpenAI-compatible endpoint) ──
+  const url =
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/` +
+    `ai/v1/chat/completions`
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${env.MODAL_PROXY_TOKEN}`,
+      Authorization: `Bearer ${apiToken}`,
     },
     body: JSON.stringify(body),
   })
@@ -95,7 +106,26 @@ async function handleAdvise(request, env) {
   const decoder = new TextDecoder()
 
   let usage = null       // { prompt_tokens, completion_tokens, total_tokens }
+  let outputChars = 0    // fallback completion-token estimate
   let buffer = ''
+
+  function scanChunk(chunk) {
+    // Parses an SSE `data:` payload captured elsewhere. Updates `usage`
+    // (OpenAI-style `prompt_tokens`/`completion_tokens`, or Workers AI's
+    // `input_tokens`/`output_tokens`) and counts completion chars.
+    const ev = chunk
+    if (ev.usage) {
+      const u = ev.usage
+      usage = {
+        prompt_tokens: u.prompt_tokens ?? u.input_tokens ?? 0,
+        completion_tokens: u.completion_tokens ?? u.output_tokens ?? 0,
+        total_tokens: u.total_tokens ?? 0,
+      }
+      if (!usage.total_tokens) usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+    }
+    const delta = ev.choices?.[0]?.delta?.content
+    if (typeof delta === 'string') outputChars += delta.length
+  }
 
   const stream = new ReadableStream({
     async pull(controller) {
@@ -110,10 +140,7 @@ async function handleAdvise(request, env) {
             if (trimmed.startsWith('data:')) {
               const payload = trimmed.slice(5).trim()
               if (payload && payload !== '[DONE]') {
-                try {
-                  const ev = JSON.parse(payload)
-                  if (ev.usage) usage = ev.usage
-                } catch { /* ignore */ }
+                try { scanChunk(JSON.parse(payload)) } catch { /* ignore */ }
               }
             }
           }
@@ -122,34 +149,51 @@ async function handleAdvise(request, env) {
         // ── Compute cost & update ledger ───────────────────────────
         let costUsd = 0
         let balanceUsd = null
+        let estimated = false
 
         if (usage) {
-          const inRate  = parseFloat(env.MODAL_IN_PRICE  || '0.12')
-          const outRate = parseFloat(env.MODAL_OUT_PRICE || '0.36')
+          const inRate  = parseFloat(env.CFAI_IN_PRICE  || '0.051')
+          const outRate = parseFloat(env.CFAI_OUT_PRICE || '0.335')
           costUsd = ((usage.prompt_tokens || 0) / 1e6) * inRate
                    + ((usage.completion_tokens || 0) / 1e6) * outRate
           costUsd = Math.round(costUsd * 1e6) / 1e6  // avoid fp noise
-
-          try {
-            const id = env.BALANCE.idFromName('luxmi-budget')
-            const stub = env.BALANCE.get(id)
-            const ledgerRes = await stub.fetch(new Request('http://do/incr', {
-              method: 'POST',
-              body: JSON.stringify({ costUsd }),
-            }))
-            const ledger = await ledgerRes.json()
-            balanceUsd = ledger.balanceUsd
-          } catch {
-            // DO unavailable (local dev without --local) — still return usage
+        } else {
+          // Workers AI didn't echo usage — fall back to a chars/4 token
+          // estimate so the dashboard still shows a "≈" per-request cost.
+          const inRate  = parseFloat(env.CFAI_IN_PRICE  || '0.051')
+          const outRate = parseFloat(env.CFAI_OUT_PRICE || '0.335')
+          usage = {
+            prompt_tokens: Math.max(1, Math.round(promptChars / 4)),
+            completion_tokens: Math.max(1, Math.round(outputChars / 4)),
+            total_tokens: 0,
           }
+          usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
+          costUsd = ((usage.prompt_tokens || 0) / 1e6) * inRate
+                   + ((usage.completion_tokens || 0) / 1e6) * outRate
+          costUsd = Math.round(costUsd * 1e6) / 1e6
+          estimated = true
+        }
+
+        try {
+          const id = env.BALANCE.idFromName('luxmi-budget')
+          const stub = env.BALANCE.get(id)
+          const ledgerRes = await stub.fetch(new Request('http://do/incr', {
+            method: 'POST',
+            body: JSON.stringify({ costUsd }),
+          }))
+          const ledger = await ledgerRes.json()
+          balanceUsd = ledger.balanceUsd
+        } catch {
+          // DO unavailable (local dev without --local) — still return usage
         }
 
         // ── Append usage trailer event ─────────────────────────────
         const trailer = `data: ${JSON.stringify({
           type: 'usage',
-          usage: usage || {},
+          usage,
           costUsd: costUsd || 0,
           balanceUsd,
+          estimated,
         })}\n\n`
         controller.enqueue(new TextEncoder().encode(trailer))
         controller.close()
@@ -169,10 +213,7 @@ async function handleAdvise(request, env) {
         if (trimmed.startsWith('data:')) {
           const payload = trimmed.slice(5).trim()
           if (payload && payload !== '[DONE]') {
-            try {
-              const ev = JSON.parse(payload)
-              if (ev.usage) usage = ev.usage
-            } catch { /* ignore */ }
+            try { scanChunk(JSON.parse(payload)) } catch { /* ignore */ }
           }
         }
       }
@@ -192,7 +233,7 @@ async function handleAdvise(request, env) {
 // ── /api/balance ───────────────────────────────────────────────────
 
 async function handleBalance(env) {
-  const budgetUsd = parseFloat(env.MODAL_BUDGET_USD || '50')
+  const budgetUsd = parseFloat(env.CFAI_BUDGET_USD || '25')
 
   try {
     const id = env.BALANCE.idFromName('luxmi-budget')

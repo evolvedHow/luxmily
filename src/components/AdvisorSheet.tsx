@@ -9,7 +9,7 @@ import { C } from '../theme/tokens'
  * Luxmi — the AI budget advisor. A bottom sheet: one Ask button, streamed
  * narrative built from the full budget JSON. The system prompt & model params
  * live in src/advisor/luxmi.yaml (private operator config) — not here.
- * The model is served by a Modal Dedicated Endpoint and proxied through a
+ * The model is served by Cloudflare Workers AI and proxied through a
  * Cloudflare Worker (the browser never holds an API key).
  */
 
@@ -97,7 +97,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
           <div className="px-4 py-6 text-[12px] leading-relaxed" style={{ color: C.muted }}>
             Luxmi's AI advisor is not configured yet. The site operator needs to
             set <span className="tnum">VITE_LUXMI_WORKER</span> in the build
-            environment and deploy a Cloudflare Worker + Modal Dedicated Endpoint.
+            environment and deploy the Cloudflare Worker (see worker/README.md).
             See <span className="tnum">worker/README.md</span> for setup.
           </div>
         ) : (

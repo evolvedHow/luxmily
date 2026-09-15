@@ -1,18 +1,21 @@
 # Luxmi.ly — Cloudflare Worker
 
-Thin authenticated proxy between the GitHub Pages frontend and a Modal Dedicated
-Endpoint. Holds the Modal proxy token as a secret so the browser never sees it.
-Also maintains a per-request cost ledger via a Durable Object.
+Thin authenticated proxy between the GitHub Pages frontend and **Cloudflare
+Workers AI**. Holds a Cloudflare API token as a secret so the browser never sees
+it, and maintains a per-request cost ledger via a Durable Object.
+
+No Modal, no third-party OpenAI provider, no per-endpoint provisioning — the
+model is served directly by Workers AI over its OpenAI-compatible
+`/v1/chat/completions` endpoint.
 
 ## Prerequisites
 
-1. **Modal Dedicated Endpoint** with a Qwen model (or any OpenAI-compatible model).
-   Create one in the Modal Dashboard → Endpoints → New Endpoint → Dedicated.
-   Note the endpoint URL and the model name it serves.
-
-2. **Modal Proxy Token** — Dashboard → Settings → Proxy Auth Tokens → Create.
-   Note the token ID (`wk-...`) and secret (`ws-...`).
-
+1. **A Cloudflare account** with Workers AI enabled (Dashboard → Workers AI → get
+   started). The free tier covers **10,000 neurons/day** across the account.
+2. **A Cloudflare API token** with the **Workers AI — Edit** permission:
+   Dashboard → My Profile → API Tokens → Create Token → use the *Workers AI*
+   template, scope it to **Account Resources → All accounts** (or your account).
+   Note the account id (Dashboard → profile → Account ID).
 3. **Wrangler** installed: `npm i -g wrangler` (or `npx wrangler`).
 
 ## Setup
@@ -20,8 +23,9 @@ Also maintains a per-request cost ledger via a Durable Object.
 ```bash
 cd worker/
 
-# Set the Modal proxy token as a Wrangler secret
-echo "wk-1234abcd.ws-5678efgh" | npx wrangler secret put MODAL_PROXY_TOKEN
+# Set the Cloudflare credentials as Wrangler secrets
+echo "<account-id>" | npx wrangler secret put CF_ACCOUNT_ID
+echo "<api-token>"  | npx wrangler secret put CF_AI_API_TOKEN
 
 # Deploy the worker
 npx wrangler deploy
@@ -33,21 +37,33 @@ npx wrangler deploy
 
 | Name | Value |
 |------|-------|
-| `MODAL_PROXY_TOKEN` | `wk-...ws-...` (the Proxy Token you created in Modal) |
+| `CF_ACCOUNT_ID` | Your Cloudflare account id |
+| `CF_AI_API_TOKEN` | API token with the "Workers AI — Edit" permission |
 
 ### Vars (set in `wrangler.toml`)
 
 | Name | Default | Description |
 |------|---------|-------------|
-| `MODAL_ENDPOINT` | — | **Required.** Your Modal Dedicated Endpoint URL (no trailing `/v1/...`) |
-| `MODAL_MODEL` | `qwen-2.5-72b` | Model name the endpoint serves |
-| `MODAL_BUDGET_USD` | `50` | Monthly budget cap (shown as balance in the UI) |
-| `MODAL_IN_PRICE` | `0.12` | Per-1M input-token price in USD |
-| `MODAL_OUT_PRICE` | `0.36` | Per-1M output-token price in USD |
+| `CFAI_MODEL` | `@cf/qwen/qwen3-30b-a3b-fp8` | Workers AI model id to serve |
+| `CFAI_BUDGET_USD` | `25` | Budget cap in USD (shown as balance in the UI) |
+| `CFAI_IN_PRICE` | `0.051` | Per-1M input-token price in USD |
+| `CFAI_OUT_PRICE` | `0.335` | Per-1M output-token price in USD |
 
-> **Dedicated Endpoints** bill per compute-second, not per token. The
-> `MODAL_IN_PRICE` / `MODAL_OUT_PRICE` values are used for an *estimated*
-> per-request cost — adjust them to approximate your actual billing rate.
+Reasonable chat models on Workers AI (2026, price in $ per 1M in/out tokens):
+
+| Model | In | Out | Notes |
+|-------|----|-----|-------|
+| `@cf/qwen/qwen3-30b-a3b-fp8` | 0.051 | 0.335 | Default — strong, cheap MoE |
+| `@cf/meta/llama-3.1-8b-instruct-fp8-fast` | 0.045 | 0.384 | Fast all-rounder |
+| `@cf/zai-org/glm-4.7-flash` | 0.060 | 0.400 | Good quality per neuron |
+| `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | 0.293 | 2.253 | Highest quality, pricey |
+
+> **How pricing works:** Workers AI bills in **neurons** ($0.011 per 1,000,
+> with a 10,000-neuron/day free allowance per account; resets 00:00 UTC). The
+> `CFAI_IN_PRICE` / `CFAI_OUT_PRICE` values are the *dollar* per-token figures
+> behind the neuron rates and are used for an **estimated** per-request cost.
+> Workers AI exposes no live balance API, so the "≈ $ left" figures are
+> estimates tracked by the Worker's Durable Object.
 
 ## Deploy the frontend with the worker URL
 
@@ -72,27 +88,31 @@ Then `npm run dev` / `npm run build` picks it up automatically.
 
 ```bash
 cd worker/
-npx wrangler dev       # → http://localhost:8787 (with Durable Objects in --local mode)
+npx wrangler dev       # → http://localhost:8787 (use --local for the Durable Object)
 ```
 
 ## How it works
 
 1. **`POST /api/advise`** — The browser sends the OpenAI-compatible Chat
    Completions body (without a model name). The worker injects `model` from
-   env, sets `Authorization: Bearer <proxy-token>`, and streams the Modal
-   response back to the browser verbatim. After the stream ends, it appends
-   one extra SSE event:
+   env, calls Workers AI at
+   `https://api.cloudflare.com/client/v4/accounts/<id>/ai/v1/chat/completions`
+   with `Authorization: Bearer <api-token>`, and streams the SSE response back
+   to the browser verbatim. After the stream ends, it appends one extra SSE
+   event:
 
    ```
-   data: {"type":"usage","usage":{...},"costUsd":0.000312,"balanceUsd":49.97}
+   data: {"type":"usage","usage":{...},"costUsd":0.000312,"balanceUsd":24.5,"estimated":false}
    ```
 
-   The frontend reads this to show per-request cost and remaining balance.
+   The frontend reads this to show per-request cost and remaining balance. If
+   Workers AI doesn't echo `usage` in the stream, the worker falls back to a
+   rough chars/4 token estimate and sets `"estimated": true`.
 
 2. **`GET /api/balance`** — Returns the Durable Object ledger:
 
    ```json
-   { "budgetUsd": 50, "spentUsd": 0.03, "balanceUsd": 49.97, "currency": "usd" }
+   { "budgetUsd": 25, "spentUsd": 0.5, "balanceUsd": 24.5, "currency": "usd" }
    ```
 
 3. **Durable Object (`BalanceDO`)** — A single-instance DO keyed

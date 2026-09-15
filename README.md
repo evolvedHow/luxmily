@@ -80,7 +80,7 @@ src/advisor/      Luxmi's client-side plumbing
   prompt.ts         user prompt = the app's own exported JSON (same file you download)
   worker.ts         client for the Cloudflare Worker (SSE streaming + /api/balance)
 src/components/   UI (incl. AdvisorSheet + AboutSheet)
-worker/           Cloudflare Worker + Durable Object (Modal proxy + budget ledger)
+worker/           Cloudflare Worker + Durable Object (Workers AI proxy + budget ledger)
 ```
 
 `engine/` imports nothing from React. Every number on screen comes from one call
@@ -122,28 +122,28 @@ JSON the app exports** (`toJSON`) and writes a narrative: balance, theme-by-
 theme benchmark comparison, pay-yourself-first health, anomalies, and 3–7
 dollar-level tips.
 
-The request flows through a **Cloudflare Worker** that holds the Modal API key
-as a secret, then forwards it to a **Modal Dedicated Endpoint** (OpenAI-
-compatible Chat Completions, running a Qwen model). The browser never sees an
-API key.
+The request flows through a **Cloudflare Worker** that proxies to **Cloudflare
+Workers AI** (OpenAI-compatible Chat Completions). The Cloudflare API token is
+held as a Worker secret — the browser never sees an API key.
 
 ```
 browser (GitHub Pages)
-  → Cloudflare Worker (worker/)   holds the Modal proxy token as a secret
-    → Modal Dedicated Endpoint    runs a Qwen model via OpenAI-compatible Chat Completions
+  → Cloudflare Worker (worker/)   holds the Workers AI API token as a secret
+    → Cloudflare Workers AI       runs the model via OpenAI-compatible Chat Completions
 ```
 
 The model, budget, and per-1M-token prices are **operator config on the Worker**
-(`MODAL_MODEL`, `MODAL_BUDGET_USD`, `MODAL_IN_PRICE`, `MODAL_OUT_PRICE`) — see
+(`CFAI_MODEL`, `CFAI_BUDGET_USD`, `CFAI_IN_PRICE`, `CFAI_OUT_PRICE`) — see
 `worker/README.md`.
 
-**Modal budget on the dashboard:** the header shows "≈ $X left of $Y Modal
-budget". Modal exposes no live balance API, so the Worker keeps a **Durable
-Object ledger**: each request's estimated cost (from usage tokens × price rates)
-is accumulated against the budget you set in `MODAL_BUDGET_USD`. The ✨ dialog
-shows the same estimate for the current request and the remaining balance.
-(Dedicated Modal Endpoints bill per compute-second, so the dollar figures are
-estimates — tune the prices.)
+**AI budget on the dashboard:** the header shows "≈ $X left of $Y AI budget".
+Workers AI exposes no live balance API (usage is billed in neurons, $0.011/1k,
+with a 10,000/day free allowance), so the Worker keeps a **Durable Object
+ledger**: each request's estimated cost (from usage tokens × price rates, or a
+chars/4 fallback when Workers AI doesn't echo usage) is accumulated against the
+budget you set in `CFAI_BUDGET_USD`. The ✨ dialog shows the same estimate for
+the current request and the remaining balance. All figures are estimates —
+tune the prices.
 
 **Private operator config — the prompt & model params:** Luxmi's system prompt
 and generation parameters live in **`src/advisor/luxmi.yaml`**. It is compiled
@@ -151,9 +151,10 @@ into the bundle at build time and is **not shown or editable in the app UI**.
 Edit `system`, `temperature`, `max_tokens`, then commit + push — the Pages
 deploy rebuilds with your prompt.
 
-**To change the model on the live site:** set `MODAL_MODEL` on the deployed
-Worker via the Cloudflare dashboard (or `wrangler secret put`). Rebuild the
-frontend only if you change the Worker URL or the prompt.
+**To change the model on the live site:** set `CFAI_MODEL` on the deployed
+Worker via the Cloudflare dashboard (or edit `worker/wrangler.toml` and redeploy
+from `worker/`). Rebuild the frontend only if you change the Worker URL or the
+prompt.
 
 ## Luxmi — troubleshooting
 
@@ -161,12 +162,12 @@ frontend only if you change the Worker URL or the prompt.
   build that's running. For the Pages site it comes from the `LUXMI_WORKER_URL`
   repository variable (set in Settings → Secrets and variables → Actions). For
   local dev, use a `.env` file: `VITE_LUXMI_WORKER=http://localhost:8787`.
-- **Worker returns 401 / 403** ⇒ the Modal endpoint is rejecting the proxy
-  token. Set it on the Worker: `echo "wk-...ws-..." | npx wrangler secret put
-  MODAL_PROXY_TOKEN` (and re-deploy with `npx wrangler deploy` from `worker/`).
-- **Worker returns 404 / 400 "model not found"** ⇒ `MODAL_MODEL` on the Worker
-  doesn't match the model your Modal Dedicated Endpoint actually serves, or
-  `MODAL_ENDPOINT` in `wrangler.toml` is wrong.
+- **Worker returns 401 / 403** ⇒ Workers AI is rejecting the API token. Recreate
+  a token with the "Workers AI — Edit" permission and set it on the Worker:
+  `echo "<token>" | npx wrangler secret put CF_AI_API_TOKEN` (and `CF_ACCOUNT_ID`
+  too if you haven't) — then re-deploy with `npx wrangler deploy` from `worker/`.
+- **Worker returns 404 / 400 "model not found"** ⇒ `CFAI_MODEL` isn't a model
+  id that exists on Workers AI — check the model catalog (`@cf/...`).
 - **Balance shows the full budget** ⇒ either no requests have run yet, or the
   Durable Object ledger can't connect (local `wrangler dev` needs `--local`).
 - **Check the worker is alive:** `curl https://<your-worker>.workers.dev/api/balance`
