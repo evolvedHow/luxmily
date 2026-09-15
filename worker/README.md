@@ -21,7 +21,7 @@ model is served directly by Workers AI over its OpenAI-compatible
 ## Setup
 
 ```bash
-cd worker/
+cd worker/    # ← MUST be in worker/, not the repo root
 
 # Set the Cloudflare credentials as Wrangler secrets
 echo "<account-id>" | npx wrangler secret put CF_ACCOUNT_ID
