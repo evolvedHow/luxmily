@@ -80,14 +80,37 @@ src/theme/tokens.ts      C palette, money(), pct()
 - Print/PDF page 2 opens with a **benchmark-basis** banner naming the cohort and
   the BLS/FRED/Vanguard/Travel sources.
 
+## Localization — ZIP → area cost of living (added last)
+
+- Optional **ZIP** in onboarding (prefilled when re-editing income) →
+  `locationForZip` in `src/data/metro-cola.ts` resolves ZIP3 → **metro/region**.
+  Pure + offline, no API key (the Census API now 302-redirects without a key —
+  verified `X-DataWebAPI-KeyError`), coverage complete via ZIP3 ranges.
+- Numbers are **approximate regional guides**: `cola` (BEA RPP ~1.00 = US),
+  `rentFactor` (ACS median gross rent ~1.00 = US), `medianIncome` (ACS, annual $).
+  Always labelled "approximate"; never passed off as official per-ZIP data.
+- In the engine (`model.ts`): every *dollar* benchmark × `cola`; `shelter` also ×
+  `rentFactor`. **Percent-of-income rails (401k %, emergency %) are untouched.**
+  Benchmark stored on the category is the *pre-cohort-scale* level; `resolve`
+  still multiplies by cohort scale at display (do not double-scale).
+- `buildBudget(input, loc?)` / `scaffold(cap, income, cohortId, loc?)` — `loc`
+  optional → US average (backward compatible). `Budget`/`ResolvedBudget` carry
+  optional `location`, exported in JSON meta + a CSV row (Luxmi sees it too).
+- The **income percentile** (`COHORT_STANDING[label]`) now shows on the cap
+  card always + onboarding (was About-only). Cap card rate line:
+  "Localized for {metro} · {cola}× US COL · ≈X% of local median income".
+- Transportation gained **Rideshare (Uber / Lyft)** (guide line); travel.ground
+  renamed "Rental Cars & Travel Rideshare" to disambiguate.
+
 ## Testing
 
-- 4 test files, 34 tests: `engine/engine.test.ts` (11), `export/export.test.ts`
-  (4), `advisor/advisor.test.ts` (9), `smoke.test.tsx` (10, real jsdom mount).
+- 5 test files, 46 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
+  (5), `export/export.test.ts` (4), `advisor/advisor.test.ts` (9),
+  `smoke.test.tsx` (12, real jsdom mount).
 - Smoke tests rely on `aria-label`s: "Household income before tax per month",
-  "Take-home pay per month", `View: ${label}` buttons, "Export budget",
-  "Reset to baseline", "Ask Luxmi", "About", `${label} plan` / `${label} observed`
-  inputs. Keep them when breaking UI.
+  "Zip code (optional)", "Take-home pay per month", `View: ${label}` buttons,
+  "Export budget", "Reset to baseline", "Ask Luxmi", "About",
+  `${label} plan` / `${label} observed` inputs. Keep them when breaking UI.
 - `npm test` + `npm run build` must pass before pushing.
 
 ## Housekeeping
@@ -106,3 +129,6 @@ src/theme/tokens.ts      C palette, money(), pct()
 - Custom domain `luxmi.ly` via CNAME + `VITE_BASE: /` (user hinted).
 - More fine-grained Luxmi control (temperature slider in UI is deliberately NOT
   planned — keeps YAML "private to me").
+- Per-ZIP precision: swap the embedded `metro-cola.ts` table for a runtime
+  ACS/geocoder provider behind the same `locationForZip` shape (needs a Census
+  API key and CORS, which is why it's embedded today).

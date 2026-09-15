@@ -7,6 +7,21 @@ export type LockMode = 'hard' | 'floor' | 'ceiling' | 'elastic'
 
 export type Viewpoint = 'top-down' | 'planned' | 'observed'
 
+/** Where a budget is localized (user ZIP → area). `cola` / `rentFactor` are
+ *  multipliers against US average (1.00 = national). Grounded in public BEA RPP
+ *  + ACS figures via a curated ZIP3-level table, so it is an approximate
+ *  regional guide, not official per-ZIP data. */
+export interface BudgetLocation {
+  zip: string
+  /** Area label, e.g. "New York City" / "Atlanta metro". */
+  metro: string
+  cola: number
+  rentFactor: number
+  /** Median household income for the area (annual $) — context only. */
+  medianIncome: number
+  matched: boolean
+}
+
 interface Bench {
   /** Monthly avg (dollars) or a fraction of income/take-home, as the data says. */
   avg: number
@@ -50,6 +65,8 @@ export interface Budget {
   takeHome: number
   cohortId: string
   cohortLabel: string
+  /** Where the benchmarks are localized, when a ZIP was given. */
+  location?: BudgetLocation
   themes: BudgetTheme[]
 }
 
@@ -113,6 +130,8 @@ export interface ResolvedBudget {
   cap: number
   cohortId: string
   cohortLabel: string
+  /** Localization info, when the user entered a ZIP. */
+  location?: BudgetLocation
   themes: ResolvedTheme[]
   /** Flattened pay-yourself-first fields for the mandatory strip. */
   payFirst: ResolvedCategory[]

@@ -5,7 +5,7 @@ import {
   themeShare,
   type CatDef,
 } from '../data/benchmarks'
-import type { Budget, BudgetCategory, BudgetTheme, LockMode } from './types'
+import type { Budget, BudgetCategory, BudgetLocation, BudgetTheme, LockMode } from './types'
 
 export const catKey = (themeId: string, catId: string) => `${themeId}.${catId}`
 
@@ -20,10 +20,33 @@ export interface Scaffold {
   observed: Record<string, number>
 }
 
-function benchMonthly(def: CatDef, incomeMonthly: number, takeHome: number, scale: number): number {
+/**
+ * Area multiplier for a category's dollar benchmark. Percent-of-income rails
+ * (401(k) %, emergency %) are income-share-based and unaffected by cost of
+ * living; everything in dollars scales with the area's COL, and Rent/Mortgage —
+ * the line that changes most across regions — carries the area rent factor too.
+ */
+function locFactor(def: CatDef, loc?: BudgetLocation): number {
+  if (def.bench.pctOf) return 1
+  const cola = loc?.cola ?? 1
+  const rent = loc && def.id === 'shelter' && loc.rentFactor > 0 ? loc.rentFactor : 1
+  return cola * rent
+}
+
+function benchMonthly(def: CatDef, incomeMonthly: number, takeHome: number, scale: number, loc?: BudgetLocation): number {
   if (def.bench.pctOf === 'gross') return incomeMonthly * def.bench.avg
   if (def.bench.pctOf === 'takehome') return takeHome * def.bench.avg
-  return def.bench.avg * scale
+  return def.bench.avg * scale * locFactor(def, loc)
+}
+
+/** Bench-level (pre-cohort-scale) dollar benchmark, adjusted for area only. */
+function benchDollar(def: CatDef, loc?: BudgetLocation): number {
+  return def.bench.pctOf ? def.bench.avg : def.bench.avg * locFactor(def, loc)
+}
+
+function medianDollar(def: CatDef, loc?: BudgetLocation): number | undefined {
+  if (def.bench.median === undefined) return undefined
+  return def.bench.pctOf ? def.bench.median : def.bench.median * locFactor(def, loc)
 }
 
 function fitToTarget(plans: { id: string; plan: number }[], target: number): number[] {
@@ -42,7 +65,7 @@ function fitToTarget(plans: { id: string; plan: number }[], target: number): num
  * first fields keep their benchmark rail values; slack becomes the Investments
  * (flex) line instead of being silently dropped.
  */
-export function scaffold(cap: number, incomeMonthly: number, cohortId: string): Scaffold {
+export function scaffold(cap: number, incomeMonthly: number, cohortId: string, loc?: BudgetLocation): Scaffold {
   const cohort = cohortById(cohortId)
   const scale = cohortScale(cohort)
   const share: Record<string, number> = {}
@@ -64,7 +87,7 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string): 
         plan[key] = 0
         continue
       }
-      const v = Math.max(0, benchMonthly(c, incomeMonthly, cap, scale))
+      const v = Math.max(0, benchMonthly(c, incomeMonthly, cap, scale, loc))
       rows.push({ id: c.id, key, plan: Math.round(v) })
     }
 
@@ -103,7 +126,7 @@ export interface BudgetInput {
   catLock: Record<string, LockMode>
 }
 
-export function buildBudget(input: BudgetInput): Budget {
+export function buildBudget(input: BudgetInput, loc?: BudgetLocation): Budget {
   const cohort = cohortById(input.cohortId)
   const scale = cohortScale(cohort)
   const income = Math.max(0, input.incomeMonthly)
@@ -118,7 +141,8 @@ export function buildBudget(input: BudgetInput): Budget {
     benchSource: t.bench.source,
     cats: t.cats.map((c): BudgetCategory => {
       const key = catKey(t.id, c.id)
-      const plan = input.plan[key] ?? Math.round(Math.max(0, benchMonthly(c, income, takeHome, scale)))
+      const plan = input.plan[key] ?? Math.round(Math.max(0, benchMonthly(c, income, takeHome, scale, loc)))
+      const median = medianDollar(c, loc)
       return {
         id: c.id,
         label: c.label,
@@ -127,8 +151,10 @@ export function buildBudget(input: BudgetInput): Budget {
         lock: input.catLock[key] ?? c.lock,
         payFirst: !!c.payFirst,
         flex: !!c.flex,
-        avg: c.bench.avg,
-        median: c.bench.median,
+        // Percent-of-income rails stay as fractions; dollar benchmarks are the
+        // area-adjusted raw level (cohort scaling happens at display time).
+        avg: c.bench.pctOf ? c.bench.avg : Math.round(benchDollar(c, loc)),
+        median: median === undefined ? undefined : c.bench.pctOf ? median : Math.round(median),
         medianNote: c.bench.medianNote,
         source: c.bench.source,
         url: c.bench.url,
@@ -142,6 +168,7 @@ export function buildBudget(input: BudgetInput): Budget {
     takeHome: input.takeHome,
     cohortId: cohort.id,
     cohortLabel: cohort.label,
+    ...(loc ? { location: loc } : {}),
     themes,
   }
 }

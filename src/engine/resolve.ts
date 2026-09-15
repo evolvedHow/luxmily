@@ -108,6 +108,7 @@ export function resolve(budget: Budget): ResolvedBudget {
     cap,
     cohortId: budget.cohortId,
     cohortLabel: budget.cohortLabel,
+    ...(budget.location ? { location: budget.location } : {}),
     themes,
     payFirst,
     totalPlan,

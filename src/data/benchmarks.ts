@@ -153,6 +153,7 @@ export const THEMES: ThemeDef[] = [
       { id: 'gas', label: 'Gasoline', lock: 'elastic', sourceRef: 'bls', bench: { avg: 165, source: 'BLS CEX 2024 · gasoline and motor oil', url: SRC.bls.url } },
       { id: 'maintenance', label: 'Maintenance & Repairs', lock: 'elastic', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · vehicle maintenance', url: SRC.bls.url } },
       { id: 'public_transit', label: 'Public Transit', lock: 'elastic', sourceRef: 'bls', bench: { avg: 95, source: 'BLS CEX 2024 · public & other transportation', url: SRC.bls.url } },
+      { id: 'rideshare', label: 'Rideshare (Uber / Lyft)', lock: 'elastic', sourceRef: 'bls', bench: { avg: 60, source: 'LuxMily guide · in-town rideshare (drawn from CEX "other transportation" detail — the car-free city line)', url: SRC.bls.url } },
       { id: 'parking_tolls', label: 'Parking & Tolls', lock: 'elastic', sourceRef: 'bls', bench: { avg: 40, source: 'BLS CEX 2024 · other vehicle expenses', url: SRC.bls.url } },
     ],
   },
@@ -187,7 +188,7 @@ export const THEMES: ThemeDef[] = [
     cats: [
       { id: 'airfare', label: 'Airfare', lock: 'elastic', sourceRef: 'bls', bench: { avg: 85, medianNote: 'Fares vary widely; this is our guide level', source: 'LuxMily guide · air travel allowance (BTS average domestic fare context)', url: 'https://www.bts.gov/travel-patterns-and-trends' } },
       { id: 'lodging', label: 'Hotels & Short-Term Rentals', lock: 'elastic', sourceRef: 'bls', bench: { avg: 140, medianNote: 'Varies hugely by destination', source: 'LuxMily guide · hotel/short-term rental allowance', url: SRC.bls.url } },
-      { id: 'ground', label: 'Rental Cars & Rideshare', lock: 'elastic', sourceRef: 'bls', bench: { avg: 55, source: 'LuxMily guide · rental cars + rideshare', url: SRC.bls.url } },
+      { id: 'ground', label: 'Rental Cars & Travel Rideshare', lock: 'elastic', sourceRef: 'bls', bench: { avg: 55, source: 'LuxMily guide · rental cars + travel rideshare', url: SRC.bls.url } },
     ],
   },
   {

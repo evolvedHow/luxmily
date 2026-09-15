@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { THEMES } from '../data/benchmarks'
+import { locationForZip } from '../data/metro-cola'
 import { buildBudget, scaffold } from './model'
 import { resolve } from './resolve'
 
@@ -31,6 +32,60 @@ describe('scaffold', () => {
     const low = scaffold(3000, 3000, 'c1').plan['housing.shelter']
     const high = scaffold(12000, 24000, 'c6').plan['housing.shelter']
     expect(high).toBeGreaterThan(low)
+  })
+})
+
+describe('localization (ZIP → cost of living)', () => {
+  const cat = (b: ReturnType<typeof built>, themeId: string, catId: string) =>
+    resolve(b).themes.find((t) => t.id === themeId)!.cats.find((c) => c.id === catId)!
+
+  it('scales every dollar benchmark with the area COL, and the rent rail with the rent factor too', () => {
+    const nyc = locationForZip('10001')
+    expect(nyc).not.toBeNull()
+    const national = built()
+    const ny = buildBudget(
+      { incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...scaffold(6800, 10000, 'c4', nyc!) },
+      nyc!,
+    )
+    // shelter: national × cola × rentFactor
+    near(cat(ny, 'housing', 'shelter').benchAvg, cat(national, 'housing', 'shelter').benchAvg * nyc!.cola * nyc!.rentFactor, 4)
+    // non-shelter dollar lines: × cola only
+    near(cat(ny, 'food', 'groceries').benchAvg, cat(national, 'food', 'groceries').benchAvg * nyc!.cola, 4)
+    // percent-of-income rails (401k) untouched by area
+    const rny = resolve(ny)
+    expect(rny.themes.find((t) => t.id === 'savings')!.cats.find((c) => c.id === 'k401')!.benchAvg).toBe(
+      cat(national, 'savings', 'k401').benchAvg,
+    )
+  })
+
+  it('keeps percent-of-income benchmarks as fractions, not rounded dollars', () => {
+    const nyc = locationForZip('10001')!
+    const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...scaffold(6800, 10000, 'c4', nyc) }, nyc)
+    const k401 = b.themes.find((t) => t.id === 'savings')!.cats.find((c) => c.id === 'k401')!
+    expect(k401.avg).toBe(0.07)
+    expect(k401.median).toBe(0.07)
+  })
+
+  it('carries the location onto the resolved budget', () => {
+    const nyc = locationForZip('10001')!
+    const r = resolve(buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...scaffold(6800, 10000, 'c4', nyc) }, nyc))
+    expect(r.location?.metro).toBe('New York City')
+    expect(r.location?.zip).toBe('10001')
+  })
+
+  it('stays at national defaults when no ZIP is given', () => {
+    const r = resolve(built())
+    expect(r.location).toBeUndefined()
+    const nyc = locationForZip('10001')!
+    const r2 = resolve(built(6800, 10000, 'c4'))
+    expect(r2.location).toBeUndefined()
+    expect(nyc.cola).toBeGreaterThan(1)
+    expect(nyc.rentFactor).toBeGreaterThan(1)
+  })
+
+  it('includes rideshare in Transportation as a 7-theme structure', () => {
+    const t = THEMES.find((x) => x.id === 'transport')!
+    expect(t.cats.some((c) => c.id === 'rideshare')).toBe(true)
   })
 })
 

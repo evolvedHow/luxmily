@@ -53,6 +53,24 @@ describe('App — an optimizer, not a tracker', () => {
       target: { value: 10000 },
     })
     expect(screen.getByText(/\$110k – \$150k/)).toBeTruthy()
+    expect(screen.getByText(/top ~22% of households by US household income/)).toBeTruthy()
+  })
+
+  it('localizes for a ZIP on onboarding and keeps income percentile + area on the cap card', async () => {
+    render(<App />)
+    fireEvent.change(screen.getByLabelText('Household income before tax per month'), { target: { value: 10000 } })
+    fireEvent.change(screen.getByLabelText('Zip code (optional)'), { target: { value: '10001' } })
+    expect(screen.getByText('New York City')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Take-home pay per month'), { target: { value: 6800 } })
+    fireEvent.click(screen.getByText('Build my budget'))
+    expect(screen.getByText(/top ~22% of households by US household income/)).toBeTruthy()
+    expect(screen.getByText('New York City')).toBeTruthy()
+    expect(screen.getByText(/≈140% of the local median income/)).toBeTruthy()
+  })
+
+  it('includes rideshare under Transportation', async () => {
+    await onboard()
+    expect(screen.getAllByText(/Rideshare \(Uber \/ Lyft\)/).length).toBeGreaterThan(0)
   })
 
   it('auto-fills take-home from income when left empty', () => {
@@ -129,7 +147,7 @@ describe('App — an optimizer, not a tracker', () => {
     expect(screen.getByText(/Top-down, not bottom-up/)).toBeTruthy()
     expect(screen.getByText(/No credit-card debt/)).toBeTruthy()
     expect(screen.getByText(/Where you stand/)).toBeTruthy()
-    expect(screen.getByText(/top ~22% of households/)).toBeTruthy()
+    expect(screen.getAllByText(/top ~22% of households/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Top 1%/)).toBeTruthy()
   })
 })

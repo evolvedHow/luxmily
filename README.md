@@ -68,9 +68,10 @@ src/engine/       pure TypeScript — no React, no DOM, no side effects
   types.ts          domain model
   solver.ts         clamped proportional allocation (shares always → 1.0)
   resolve.ts        the single entry point the UI calls
-  model.ts          scaffold: benchmarks → starting plan
+  model.ts          scaffold: benchmarks → starting plan (COLA-aware)
 src/data/         benchmarks.ts (cohorts, themes, shares, sources + links)
                   context.ts  (About sheet: US-income standing + net worth refs)
+                  metro-cola.ts (ZIP → area: cost-of-living, rent factor, median income)
 src/store/        useBudget.ts (zustand + localStorage: luxmily-budget-v1)
                   useAdvisor.ts (Luxmi provider/model/key, luxmily-advisor-v1)
 src/export/       JSON, CSV (Google Sheets), print/PDF
@@ -86,6 +87,19 @@ src/components/   UI (incl. AdvisorSheet + AboutSheet)
 `engine/` imports nothing from React. Every number on screen comes from one call
 to `resolve(budget)` — there is no allocation math in any component. That
 constraint is what keeps the model testable in isolation.
+
+## Your area (ZIP → cost of living)
+
+An optional ZIP localizes every benchmark to where you live. The dollar lines
+scale with that area's **cost of living** (vs US = 1.00), and the Rent/Mortgage
+rail carries the area's **rent factor** too — so NYC rent starts ~1.9× national
+while Marietta, GA stays ~1.1×. The cap card then answers "where do I fit?": your
+income percentile by US household income, plus ≈% of your local median income.
+The data (`src/data/metro-cola.ts`) is an **approximate, ZIP3-level regional guide**
+synthesized from BEA Regional Price Parities and ACS 5-year medians — deterministic
+and offline (no API key, works on a static site). It's always labelled
+"approximate"; swap the file for a live provider behind the same
+`locationForZip` shape if per-ZIP precision ever matters.
 
 ## About
 
@@ -131,7 +145,8 @@ missing.
 
 ## Play with the model
 
-1. Enter income, watch the cohort rail appear, build.
+1. Enter income (watch the cohort rail + your US income percentile appear),
+   add your ZIP to localize the averages (optional), build.
 2. Drag **Housing** up top-down — watch every other share renormalize to keep
    the wheel at 100%.
 3. Push a **Groceries** plan past the Food allocation — the theme turns red and

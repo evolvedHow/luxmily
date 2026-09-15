@@ -47,7 +47,15 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
           background: '#f7f7f7',
         }}
       >
-        <strong>Benchmark basis</strong> — every average below is the typical spend for your income cohort (
+        <strong>Benchmark basis</strong>
+        {r.location && (
+          <>
+            {' '}— localized for <strong>{r.location.metro}</strong> ({r.location.zip}) at{' '}
+            {r.location.cola.toFixed(2)}× national cost of living, with the Rent/Mortgage rail at{' '}
+            {r.location.rentFactor.toFixed(2)}× its national level.
+          </>
+        )}{' '}
+        Every average below is the typical spend for your income cohort (
         {r.cohortLabel}): category averages from <strong>BLS Consumer Expenditure Survey 2024</strong> by income
         quintile, savings/retirement rails from <strong>FRED PSAVERT</strong> and <strong>Vanguard How America
         Saves</strong>, Travel from the Luxmi.ly discretionary guide. Averages steer the starting plan — they are

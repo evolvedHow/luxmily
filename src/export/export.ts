@@ -48,6 +48,14 @@ export interface ExportBudget {
     cohortLabel: string
     cohortAvgAnnualSpend: number
     cohortBand: string
+    /** Localization (ZIP → area) when given, else null. */
+    location: {
+      zip: string
+      metro: string
+      cola: number
+      rentFactor: number
+      medianIncome: number
+    } | null
     ok: boolean
     buffer: number
     totalPlan: number
@@ -113,6 +121,15 @@ export function toExport(r: ResolvedBudget): ExportBudget {
       cohortLabel: r.cohortLabel,
       cohortAvgAnnualSpend: cohort.avgAnnualSpend,
       cohortBand: cohort.incomeMin === 0 ? `up to ${cohort.incomeMax.toFixed(0)}/mo` : `${cohort.incomeMin.toFixed(0)}–${cohort.incomeMax === Infinity ? '+' : cohort.incomeMax.toFixed(0)}/mo`,
+      location: r.location
+        ? {
+            zip: r.location.zip,
+            metro: r.location.metro,
+            cola: r.location.cola,
+            rentFactor: r.location.rentFactor,
+            medianIncome: r.location.medianIncome,
+          }
+        : null,
       ok: r.ok,
       buffer: r.buffer,
       totalPlan: r.totalPlan,
@@ -145,6 +162,12 @@ export function toCSV(r: ResolvedBudget): string {
   rows.push(['Income (before tax)', r.incomeMonthly])
   rows.push(['Take-home (Cap)', r.takeHome])
   rows.push(['Income cohort', r.cohortLabel])
+  rows.push([
+    'Area (ZIP → metro)',
+    m.meta.location
+      ? `${m.meta.location.metro} (${m.meta.location.zip}) — ${m.meta.location.cola}× national cost of living, rent ${m.meta.location.rentFactor}×`
+      : 'US average',
+  ])
   rows.push(['Optimized (all green)', m.meta.ok ? 'yes' : 'no'])
   rows.push(['Cap - plan buffer', r.buffer])
   rows.push(['Observed spend', r.totalObserved])

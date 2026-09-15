@@ -102,6 +102,14 @@ export function AboutSheet({ open, onClose }: { open: boolean; onClose: () => vo
                 </div>
               ))}
             </div>
+            {r.location && (
+              <div className="mt-2 border-t pt-2 text-[11.5px] leading-relaxed" style={{ borderColor: C.border, color: C.text }}>
+                Your area: <span style={{ color: C.cap }}>{r.location.metro}</span> ({r.location.zip}) —{' '}
+                {r.location.cola.toFixed(2)}× national cost of living, so your Rent/Mortgage rail starts{' '}
+                {r.location.rentFactor.toFixed(2)}× its national level. Averages point where you live, then your plan
+                is yours.
+              </div>
+            )}
             <p className="text-[10px] mt-2 leading-snug" style={{ color: C.muted }}>
               Net worth thresholds are US reference markers — your money lives in the plan above, and this app never
               asks your net worth. Approximations; not financial advice.

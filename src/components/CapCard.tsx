@@ -1,4 +1,5 @@
 import { useBudget } from '../store/useBudget'
+import { COHORT_STANDING } from '../data/context'
 import { C, money, pct } from '../theme/tokens'
 import { Card, Pill, Row } from './ui'
 import type { ResolvedBudget } from '../engine/types'
@@ -6,12 +7,18 @@ import type { ResolvedBudget } from '../engine/types'
 /**
  * The one hard number. The plan sits against the cap; the Observed line says what
  * you have discovered over time; the gap back is what you can reallocate — this
- * app optimizes, it does not track.
+ * app optimizes, it does not track. The income line carries your cohort's
+ * percentile standing, and the ZIP line shows where the localized averages point.
  */
 export function CapCard({ r }: { r: ResolvedBudget }) {
   const editIncome = useBudget((s) => s.editIncome)
+  const standing = COHORT_STANDING[r.cohortId]
 
   const planShare = r.cap > 0 ? Math.min(1, r.totalPlan / r.cap) : 0
+  const loc = r.location
+  const areaPct =
+    loc && loc.medianIncome > 0 ? Math.round((r.incomeMonthly * 12 * 100) / loc.medianIncome) : 0
+  const k = (n: number) => (n >= 1000 ? `$${Math.round(n / 1000)}k` : money(n))
 
   return (
     <Card accent={r.ok ? C.green : C.red}>
@@ -26,6 +33,17 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
           <div className="text-[11px] mt-1" style={{ color: C.muted }}>
             Income <span className="tnum">{money(r.incomeMonthly)}</span>/mo · cohort {r.cohortLabel}
           </div>
+          {standing && (
+            <div className="text-[11px]" style={{ color: C.cap }}>
+              {standing.label} by US household income
+            </div>
+          )}
+          {loc && (
+            <div className="text-[11px] leading-snug" style={{ color: C.muted }}>
+              Localized for {loc.metro} ({loc.zip}) · {loc.cola.toFixed(2)}× US cost of living · ≈{areaPct}% of the
+              local median income ({k(loc.medianIncome)}/yr)
+            </div>
+          )}
         </div>
         <Pill tone={r.ok ? 'green' : 'red'}>{r.ok ? 'optimized' : 'over plan'}</Pill>
       </div>
