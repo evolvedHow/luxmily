@@ -1,9 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { LUXMI_CONFIG, advisorDefaultModel, advisorParams, advisorSystem, loadLuxmiConfig } from './config'
+import { describe, expect, it, vi } from 'vitest'
+import { LUXMI_CONFIG, advisorParams, advisorSystem, loadLuxmiConfig } from './config'
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from './prompt'
-import { ADVISOR_PROVIDERS, AdvisorProvider, fetchAvailableModels } from './providers'
-import { ANTHROPIC_DELTA, OPENAI_DELTA, journey } from './stream'
-import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
+import { askAdvisor, fetchBalance, isConfigured, workerUrl } from './worker'
 import { buildBudget, scaffold } from '../engine/model'
 import { resolve } from '../engine/resolve'
 import { cohortById } from '../data/benchmarks'
@@ -16,123 +14,18 @@ function sample() {
 }
 
 describe('luxmi config (private YAML)', () => {
-  it('loads a system prompt, params and model overrides', () => {
+  it('loads a system prompt and params with safe defaults', () => {
     const c = loadLuxmiConfig()
     expect(c.system.length).toBeGreaterThan(80)
     expect(c.system).toContain('Luxmi')
     expect(c.temperature).toBeGreaterThanOrEqual(0)
     expect(c.max_tokens).toBeGreaterThanOrEqual(64)
-    expect(Object.keys(c.models).length).toBeGreaterThanOrEqual(1)
   })
 
   it('exports the config as a stable singleton', () => {
     expect(advisorSystem()).toBe(LUXMI_CONFIG.system)
     expect(advisorParams().max_tokens).toBe(LUXMI_CONFIG.max_tokens)
-  })
-
-  it('defaults every registered provider to a model', () => {
-    for (const p of ADVISOR_PROVIDERS) {
-      const m = advisorDefaultModel(p.id) ?? p.defaultModel
-      expect(m.length).toBeGreaterThan(0)
-      expect(p.models.map((x) => x.id)).toContain(m)
-    }
-  })
-})
-
-describe('luxmi settings hygiene (useAdvisor)', () => {
-  it('clears a stale base URL override when the provider changes', () => {
-    useAdvisor.setState({ baseUrl: 'http://localhost:11434/v1' })
-    useAdvisor.getState().setProvider('google')
-    const s = useAdvisor.getState()
-    expect(s.baseUrl).toBe('')
-    expect(s.modelId).toBe(defaultModelFor('google'))
-  })
-
-  it('seeds a model the chosen provider actually offers', () => {
-    useAdvisor.getState().setProvider('groq')
-    const p = ADVISOR_PROVIDERS.find((x) => x.id === 'groq')!
-    expect(p.models.map((m) => m.id)).toContain(useAdvisor.getState().modelId)
-  })
-
-  it('resolves a default model for every provider that is in its own list', () => {
-    for (const p of ADVISOR_PROVIDERS) {
-      expect(p.models.map((m) => m.id)).toContain(defaultModelFor(p.id))
-    }
-  })
-
-  it('effective model: a typed custom id wins over the picker', () => {
-    const p = ADVISOR_PROVIDERS[0]
-    expect(effectiveModelId(p.id, p.defaultModel, 'x/my-custom-model')).toBe('x/my-custom-model')
-    expect(effectiveModelId(p.id, p.defaultModel, '  ')).toBe(p.defaultModel)
-  })
-
-  it('custom model override is cleared on provider switch (no cross-provider leakage)', () => {
-    useAdvisor.getState().setProvider('groq')
-    useAdvisor.getState().setCustomModel('my/groq-model')
-    expect(useAdvisor.getState().customModel).toBe('my/groq-model')
-    useAdvisor.getState().setProvider('google')
-    const s = useAdvisor.getState()
-    expect(s.customModel).toBe('')
-    expect(s.baseUrl).toBe('')
-    expect(s.modelId).toBe(defaultModelFor('google'))
-  })
-})
-
-describe('luxmi live model lists (fetchAvailableModels)', () => {
-  it('falls back to the hardcoded list when the fetch throws', async () => {
-    const provider: AdvisorProvider = {
-      ...ADVISOR_PROVIDERS[0],
-      models: [{ id: 'fallback', label: 'Fallback', free: true }],
-      fetchModelsList: () => Promise.reject(new Error('offline')),
-    }
-    await expect(fetchAvailableModels(provider, 'some-key')).resolves.toEqual(provider.models)
-  })
-
-  it('caches per (provider, key-prefix) so repeated opens do not refetch', async () => {
-    let calls = 0
-    const provider: AdvisorProvider = {
-      ...ADVISOR_PROVIDERS[0],
-      fetchModelsList: async () => {
-        calls++
-        return [{ id: 'live-model', label: 'Live Model', free: true }]
-      },
-    }
-    await fetchAvailableModels(provider, 'key-aaaa')
-    const second = await fetchAvailableModels(provider, 'key-aaaa')
-    expect(calls).toBe(1)
-    expect(second[0].id).toBe('live-model')
-    await fetchAvailableModels(provider, 'key-bbbb')
-    expect(calls).toBe(2)
-  })
-
-  it('parses the Groq catalog shape and excludes non-chat models', async () => {
-    const groq = ADVISOR_PROVIDERS.find((p) => p.id === 'groq')!
-    const ogFetch = globalThis.fetch
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          data: [
-            { id: 'openai/gpt-oss-120b' },
-            { id: 'whisper-large-v3' },
-            { id: 'openai/gpt-oss-20b' },
-            { id: 'meta-llama/llama-prompt-guard-2-86m' },
-          ],
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      )
-    try {
-      const list = await fetchAvailableModels(groq, 'gsk-key')
-      expect(list.map((m) => m.id)).toEqual(['openai/gpt-oss-120b', 'openai/gpt-oss-20b'])
-    } finally {
-      globalThis.fetch = ogFetch
-    }
-  })
-
-  it('every registered provider keeps a non-empty fallback list', async () => {
-    for (const p of ADVISOR_PROVIDERS) {
-      const list = await fetchAvailableModels({ ...p, fetchModelsList: undefined }, '')
-      expect(list.length).toBeGreaterThan(0)
-    }
+    expect(advisorParams().temperature).toBe(LUXMI_CONFIG.temperature)
   })
 })
 
@@ -194,23 +87,80 @@ function sseStream(body: string): Response {
   return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } })
 }
 
-describe('luxmi streaming (SSE)', () => {
-  it('parses OpenAI-compatible data: deltas', async () => {
-    const body = 'data: {"choices":[{"delta":{"content":"Hello "}}]}\n\ndata: {"choices":[{"delta":{"content":"world"}}]}\n\ndata: [DONE]\n\n'
-    const seen: string[] = []
-    const full = await journey(sseStream(body), OPENAI_DELTA, (t) => seen.push(t))
-    expect(full).toBe('Hello world')
-    expect(seen.join('')).toBe('Hello world')
+describe('luxmi worker client', () => {
+  it('is unconfigured until VITE_LUXMI_WORKER is set', () => {
+    expect(isConfigured()).toBe(false)
+    expect(workerUrl()).toBe('')
   })
 
-  it('parses Anthropic content_block_delta deltas', async () => {
-    const body = 'data: {"type":"content_block_delta","delta":{"text":"Nice "}}\n\ndata: {"type":"content_block_delta","delta":{"text":"plan"}}\n\ndata: {"type":"message_stop"}\n\n'
-    const full = await journey(sseStream(body), ANTHROPIC_DELTA, () => {})
-    expect(full).toBe('Nice plan')
+  it('askAdvisor throws when the worker is not configured', async () => {
+    await expect(askAdvisor({ system: 's', prompt: 'p', onDelta: () => {} })).rejects.toThrow('worker not configured')
   })
 
-  it('surfaces errors from the payload', async () => {
-    const body = 'data: {"type":"error","error":{"message":"bad widget"}}\n\n'
-    await expect(journey(sseStream(body), ANTHROPIC_DELTA, () => {})).rejects.toThrow('bad widget')
+  it('streams OpenAI-compatible deltas and parses the usage trailer', async () => {
+    vi.stubEnv('VITE_LUXMI_WORKER', 'https://example.workers.dev/')
+
+    const body = [
+      'data: {"choices":[{"delta":{"content":"Hello "}}]}',
+      '',
+      'data: {"choices":[{"delta":{"content":"world"}}]}',
+      '',
+      'data: [DONE]',
+      '',
+      'data: {"type":"usage","usage":{"prompt_tokens":120,"completion_tokens":30,"total_tokens":150},"costUsd":0.000312,"balanceUsd":49.97}',
+      '',
+      '',
+    ].join('\n')
+
+    const ogFetch = globalThis.fetch
+    globalThis.fetch = async (input) => {
+      expect(input).toBe('https://example.workers.dev/api/advise')
+      return sseStream(body)
+    }
+    try {
+      const seen: string[] = []
+      const result = await askAdvisor({ system: 's', prompt: 'p', onDelta: (t) => seen.push(t) })
+      expect(result.text).toBe('Hello world')
+      expect(seen.join('')).toBe('Hello world')
+      expect(result.usage?.total_tokens).toBe(150)
+      expect(result.costUsd).toBe(0.000312)
+      expect(result.balanceUsd).toBe(49.97)
+    } finally {
+      globalThis.fetch = ogFetch
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('surfaces a non-OK response shape to the caller', async () => {
+    vi.stubEnv('VITE_LUXMI_WORKER', 'https://example.workers.dev')
+    const ogFetch = globalThis.fetch
+    globalThis.fetch = async () => new Response('{"error":"model not found"}', { status: 502 })
+    try {
+      await expect(askAdvisor({ system: 's', prompt: 'p', onDelta: () => {} })).rejects.toThrow('model not found')
+    } finally {
+      globalThis.fetch = ogFetch
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('fetchBalance returns null when the worker is not configured', async () => {
+    expect(await fetchBalance()).toBeNull()
+  })
+
+  it('fetchBalance resolves the ledger shape', async () => {
+    vi.stubEnv('VITE_LUXMI_WORKER', 'https://example.workers.dev')
+    const ogFetch = globalThis.fetch
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ budgetUsd: 25, spentUsd: 0.5, balanceUsd: 24.5, currency: 'usd' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    try {
+      const bal = await fetchBalance()
+      expect(bal).toEqual({ budgetUsd: 25, spentUsd: 0.5, balanceUsd: 24.5, currency: 'usd' })
+    } finally {
+      globalThis.fetch = ogFetch
+      vi.unstubAllEnvs()
+    }
   })
 })

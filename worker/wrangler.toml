@@ -1,0 +1,30 @@
+name = "luxmily-worker"
+main = "src/index.js"
+compatibility_date = "2024-10-01"
+
+# ── Environment ─────────────────────────────────────────────────────
+# Fill these in for your Modal Dedicated Endpoint.
+# Wrangler secrets (not committed): MODAL_PROXY_TOKEN
+#   echo "wk-...ws-..." | npx wrangler secret put MODAL_PROXY_TOKEN
+#
+# Wrangler vars (safe to commit, non-sensitive):
+#   MODAL_ENDPOINT   = your Modal Dedicated Endpoint URL (no trailing /v1/...)
+#   MODAL_MODEL      = the model name your endpoint serves (e.g. "qwen-2.5-72b")
+#   MODAL_BUDGET_USD = your monthly budget cap (for estimated balance display)
+#   MODAL_IN_PRICE   = per-1M input-token price in USD (default: 0.12)
+#   MODAL_OUT_PRICE  = per-1M output-token price in USD (default: 0.36)
+# ────────────────────────────────────────────────────────────────────
+
+[vars]
+MODAL_MODEL = "qwen-2.5-72b"
+MODAL_BUDGET_USD = "50"
+MODAL_IN_PRICE = "0.12"
+MODAL_OUT_PRICE = "0.36"
+
+# ── Durable Object ──────────────────────────────────────────────────
+[durable_objects]
+bindings = [{ name = "BALANCE", class_name = "BalanceDO" }]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["BalanceDO"]

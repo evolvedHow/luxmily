@@ -33,6 +33,9 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /luxmily/
+          # The Cloudflare Worker that proxies Luxmi's AI calls to a Modal
+          # Dedicated Endpoint. Set this to your deployed worker's URL.
+          VITE_LUXMI_WORKER: ${{ vars.LUXMI_WORKER_URL }}
 
       - uses: actions/configure-pages@v5
 

@@ -73,15 +73,14 @@ src/data/         benchmarks.ts (cohorts, themes, shares, sources + links)
                   context.ts  (About sheet: US-income standing + net worth refs)
                   metro-cola.ts (ZIP → area: cost-of-living, rent factor, median income)
 src/store/        useBudget.ts (zustand + localStorage: luxmily-budget-v1)
-                  useAdvisor.ts (Luxmi provider/model/key, luxmily-advisor-v1)
 src/export/       JSON, CSV (Google Sheets), print/PDF
-src/advisor/      lib designed exclusively for the public (openai/anthropic)
-  providers.ts      registry: Groq, Gemini, Anthropic, OpenAI, OpenRouter, Ollama
+src/advisor/      Luxmi's client-side plumbing
   luxmi.yaml        PRIVATE operator prompt + model params (not in the UI)
   config.ts         typed YAML loader with safe defaults
   prompt.ts         user prompt = the app's own exported JSON (same file you download)
-  stream.ts         SSE streaming for both OpenAI- and Anthropic-shaped APIs
+  worker.ts         client for the Cloudflare Worker (SSE streaming + /api/balance)
 src/components/   UI (incl. AdvisorSheet + AboutSheet)
+worker/           Cloudflare Worker + Durable Object (Modal proxy + budget ledger)
 ```
 
 `engine/` imports nothing from React. Every number on screen comes from one call
@@ -121,73 +120,57 @@ income cohort stands among US households and where the familiar "top 10% / top
 The ✨ button calls Luxmi, an LLM that reads your **entire budget as the exact
 JSON the app exports** (`toJSON`) and writes a narrative: balance, theme-by-
 theme benchmark comparison, pay-yourself-first health, anomalies, and 3–7
-dollar-level tips. The request goes **directly from your browser to the
-provider** — the API key lives only in `localStorage`.
+dollar-level tips.
 
-Pick a provider + model; free-tier options (no card):
+The request flows through a **Cloudflare Worker** that holds the Modal API key
+as a secret, then forwards it to a **Modal Dedicated Endpoint** (OpenAI-
+compatible Chat Completions, running a Qwen model). The browser never sees an
+API key.
 
-| Provider | Free tier | Get a key |
-|---|---|---|
-| Groq | free, no card | https://console.groq.com/keys |
-| Google (Gemini) | free tier, no card | https://aistudio.google.com/apikey |
-| OpenRouter | `:free` models | https://openrouter.ai/keys |
-| Anthropic (Claude) | no free tier | https://console.anthropic.com/ |
-| OpenAI (GPT) | no free tier | https://platform.openai.com/api-keys |
-| Local · Ollama | **100% free, no key, offline** | install + `ollama pull llama3.2` |
+```
+browser (GitHub Pages)
+  → Cloudflare Worker (worker/)   holds the Modal proxy token as a secret
+    → Modal Dedicated Endpoint    runs a Qwen model via OpenAI-compatible Chat Completions
+```
 
-The **model dropdown is live**: the moment you paste a valid key, the app calls
-that provider's catalog endpoint with your key and lists exactly the models you
-can actually use (no stale names, no retired models). Without a key it shows a
-small built-in fallback list. There's also a **Custom model id** box that
-sends any model id verbatim (cleared on provider switch).
+The model, budget, and per-1M-token prices are **operator config on the Worker**
+(`MODAL_MODEL`, `MODAL_BUDGET_USD`, `MODAL_IN_PRICE`, `MODAL_OUT_PRICE`) — see
+`worker/README.md`.
 
-**Groq free tier caps ~8,000 tokens per request**, which the full budget JSON
-can exceed — so for Groq, Luxmi sends a *condensed* export (same numbers,
-source links stripped, minified; the ✨ dialog notes "condensed payload").
-Google, Anthropic, OpenRouter, and Ollama receive the full document.
+**Modal budget on the dashboard:** the header shows "≈ $X left of $Y Modal
+budget". Modal exposes no live balance API, so the Worker keeps a **Durable
+Object ledger**: each request's estimated cost (from usage tokens × price rates)
+is accumulated against the budget you set in `MODAL_BUDGET_USD`. The ✨ dialog
+shows the same estimate for the current request and the remaining balance.
+(Dedicated Modal Endpoints bill per compute-second, so the dollar figures are
+estimates — tune the prices.)
 
 **Private operator config — the prompt & model params:** Luxmi's system prompt
 and generation parameters live in **`src/advisor/luxmi.yaml`**. It is compiled
 into the bundle at build time and is **not shown or editable in the app UI**.
-Edit `system` (the entire advisor persona/instructions), `temperature`,
-`max_tokens`, and per-provider `models` defaults, then commit + push — the
-Pages deploy rebuilds with your prompt. Safe defaults kick in if a line is
-missing.
+Edit `system`, `temperature`, `max_tokens`, then commit + push — the Pages
+deploy rebuilds with your prompt.
 
-**To change providers/models on the live site (github.io), `git push` to `main`
-is the only step** — `.github/workflows/deploy.yml` rebuilds with
-`VITE_BASE: /luxmily/` and publishes (1–3 min; hard-refresh with
-Ctrl/Cmd+Shift+R to bypass cached assets). No other deploy step. Two caveats:
-- Browser **`localStorage` (`luxmily-advisor-v1`) survives deploys.** If a
-  stale Base URL or an old model id persists from a previous session, requests
-  keep failing even on the new build. Switching provider clears both; or reset
-  cleanly via DevTools → Application → Local Storage → delete
-  `luxmily-advisor-v1`, then reopen ✨.
-- The ✨ dialog has a **Custom model id** box — type any model id your provider
-  actually serves and it wins over the picker instantly (no rebuild needed).
-  It is cleared when you switch provider, so it never leaks to another one.
+**To change the model on the live site:** set `MODAL_MODEL` on the deployed
+Worker via the Cloudflare dashboard (or `wrangler secret put`). Rebuild the
+frontend only if you change the Worker URL or the prompt.
 
 ## Luxmi — troubleshooting
 
-- **The ✨ dialog shows the exact request under the Ask button**
-  (`requests → <endpoint> · model <modelId>`). If the endpoint isn't the one
-  you expect, a stale **Base URL** override is the cause — change the provider
-  to clear it (provider switches drop the override, the custom model id, and
-  reseed the model).
-- **`405` / `404` / network error** ⇒ almost always a leftover Base URL from
-  another provider hitting the wrong host/path, or a model id the provider has
-  retired. Drop your saved Base URL / custom model; the model list reseeds
-  automatically. The error line now shows the provider's own message (and type,
-  e.g. `rate_limit_exceeded` (429) makes it explicit).
-- **`400` "model not found"** ⇒ the model id isn't valid for that provider
-  (misspelled, not released, or decommissioned). Pick from the dropdown.
-- **Network error on OpenAI** ⇒ CORS: browsers reject direct OpenAI calls.
-  Use Groq/Google/Anthropic (<chrome> allows localhost HTTP, GitHub Pages is
-  already HTTPS) or Ollama locally — or proxy through a server.
-- **Nothing happens with Ollama** ⇒ server on port 11434, `OLLAMA_HOST`
-  default, `ollama pull <model>`, base URL `http://localhost:11434/v1`.
-- Bear in mind Apple's web security: WKWebView can block some
-  cross-origin requests regardless of the above.
+- **"Luxmi worker not configured"** ⇒ `VITE_LUXMI_WORKER` isn't set in the
+  build that's running. For the Pages site it comes from the `LUXMI_WORKER_URL`
+  repository variable (set in Settings → Secrets and variables → Actions). For
+  local dev, use a `.env` file: `VITE_LUXMI_WORKER=http://localhost:8787`.
+- **Worker returns 401 / 403** ⇒ the Modal endpoint is rejecting the proxy
+  token. Set it on the Worker: `echo "wk-...ws-..." | npx wrangler secret put
+  MODAL_PROXY_TOKEN` (and re-deploy with `npx wrangler deploy` from `worker/`).
+- **Worker returns 404 / 400 "model not found"** ⇒ `MODAL_MODEL` on the Worker
+  doesn't match the model your Modal Dedicated Endpoint actually serves, or
+  `MODAL_ENDPOINT` in `wrangler.toml` is wrong.
+- **Balance shows the full budget** ⇒ either no requests have run yet, or the
+  Durable Object ledger can't connect (local `wrangler dev` needs `--local`).
+- **Check the worker is alive:** `curl https://<your-worker>.workers.dev/api/balance`
+  — should return `{ "budgetUsd":…, "spentUsd":…, "balanceUsd":… }`.
 
 ## Play with the model
 

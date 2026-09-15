@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Info, RotateCcw, Sparkles } from 'lucide-react'
 import { AboutSheet } from './components/AboutSheet'
 import { AdvisorSheet } from './components/AdvisorSheet'
@@ -11,6 +11,7 @@ import { ThemeCard } from './components/ThemeCard'
 import { ViewpointToggle } from './components/ViewpointToggle'
 import { C } from './theme/tokens'
 import { useBudget, useResolved } from './store/useBudget'
+import { fetchBalance, isConfigured, type Balance } from './advisor/worker'
 
 export default function App() {
   const initialized = useBudget((s) => s.initialized)
@@ -37,6 +38,7 @@ function Dashboard() {
             <div className="text-[13px] mt-0.5" style={{ color: C.muted }}>
               {r.cohortLabel} · {r.incomeMonthly > 0 ? `$${Math.round(r.incomeMonthly).toLocaleString()}/mo income` : ''}
             </div>
+            <BalanceBadge />
           </div>
           <div className="flex items-center gap-1.5">
             <IconBtn onClick={() => setAdvisorOpen(true)} label="Ask Luxmi">
@@ -114,5 +116,41 @@ function IconBtn({
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * Modal spend badge shown under the header on the dashboard. The worker keeps
+ * a Durable Object ledger (budget − accumulated per-request cost, estimated
+ * from token usage) because Modal exposes no live balance API. Purely
+ * decorative — hidden entirely when the worker isn't configured.
+ */
+function BalanceBadge() {
+  const [balance, setBalance] = useState<Balance | null>(null)
+
+  useEffect(() => {
+    if (!isConfigured()) return
+    let cancelled = false
+    const tick = () =>
+      fetchBalance().then((b) => {
+        if (!cancelled && b) setBalance(b)
+      })
+    tick()
+    const id = setInterval(tick, 60_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [])
+
+  if (!balance) return null
+
+  const frac = balance.budgetUsd > 0 ? balance.balanceUsd / balance.budgetUsd : 0
+  const color = frac <= 0 ? C.red : frac <= 0.25 ? C.tension : C.green
+
+  return (
+    <div className="mt-1 text-[10.5px] tnum" style={{ color }}>
+      ≈ ${balance.balanceUsd.toFixed(2)} left of ${balance.budgetUsd.toFixed(0)} Modal budget
+    </div>
   )
 }

@@ -44,31 +44,44 @@ src/engine/{types,solver,resolve,model}.ts   pure TS domain (tested in isolation
 src/data/benchmarks.ts   cohorts c1–c6, THEME_SHARES, THEMES (7), SRC links
 src/data/context.ts      About sheet: US-income standing + net-worth refs
 src/store/useBudget.ts   budget state, persist "luxmily-budget-v1"
-src/store/useAdvisor.ts  Luxmi settings, persist "luxmily-advisor-v1"
-src/advisor/{providers,config,prompt,stream}.ts + luxmi.yaml
+src/advisor/{config,prompt,worker}.ts + luxmi.yaml
 src/export/export.ts     toExport/toJSON/toCSV/print (Optimizer columns)
 src/components/          CapCard, PayFirstStrip, ThemeCard, ViewpointToggle,
                          ExportMenu, PrintSheet, Onboarding, AdvisorSheet, AboutSheet
 src/theme/tokens.ts      C palette, money(), pct()
+worker/                  Cloudflare Worker (Modal proxy) + Durable Object ledger
 ```
 
-## Luxmi — the AI advisor (added last)
+## Luxmi — the AI advisor (Modal + Cloudflare Worker)
 
-- ✨ header button → `AdvisorSheet` bottom sheet. User picks provider + model +
-  API key (key stays in `localStorage`); request goes **browser → provider
-  directly** (no proxy). Streaming SSE narrative with light inline markdown.
-- Providers: Groq, Google/Gemini, Anthropic, OpenAI, OpenRouter + **Local
-  Ollama** (no key — the "don't want to sign up" path). Free tiers: Groq (no
-  card), Gemini AI Studio, OpenRouter `:free`. Anthropic/OpenAI paid.
-- **`src/advisor/luxmi.yaml` is the PRIVATE operator config** — system prompt +
-  `temperature`/`max_tokens` + per-provider `models` defaults. Compiled in at
-  build time, NOT shown/editable in the UI. Go there to tune Luxmi's voice.
-- **Luxmi's input is the app's own exported JSON** (`toJSON(r)`, the exact
-  downloadable file) — every input and computed parameter is in it; the model
-  is told to use only numbers in that JSON. `prompt.ts` frames it, `stream.ts`
-  handles both OpenAI- and Anthropic-shaped SSE.
-- `stream.ts` `OPENAI_DELTA` / `ANTHROPIC_DELTA` parse the two event schemas;
-  `journey()` reads the stream.
+- ✨ header button → `AdvisorSheet` bottom sheet. One Ask button, streamed SSE
+  narrative, per-request cost + remaining Modal budget in the footer.
+- **Pipeline: browser → Cloudflare Worker (`worker/`) → Modal Dedicated
+  Endpoint.** The Worker holds the Modal proxy token (`wk-….ws-…`) as a
+  `wrangler secret` and injects `Authorization: Bearer <token>` on calls to
+  `<MODAL_ENDPOINT>/v1/chat/completions` (OpenAI-compatible, so no Modal app
+  code is needed — the operator creates the Endpoint in the Modal dashboard).
+- **The model is operator config, not UI:** `MODAL_MODEL` env on the Worker.
+  `src/advisor/luxmi.yaml` keeps only the system prompt + `temperature`/
+  `max_tokens` (still the PRIVATE operator config, compiled in at build time).
+- **Balance is an estimate, not Modal's number:** Modal exposes no live balance
+  API (billing SDK is usage reports only). The Worker keeps a **Durable Object
+  ledger** (`BalanceDO`, key `luxmi-budget`, persists `spentUsd`). Each request
+  computes cost from `usage` tokens × `MODAL_IN_PRICE`/`MODAL_OUT_PRICE`
+  (per-1M USD, defaults 0.12/0.36) and appends an SSE trailer event
+  `{"type":"usage", usage, costUsd, balanceUsd}` after `[DONE]`. `GET /api/balance`
+  returns `{budgetUsd, spentUsd, balanceUsd}` from `MODAL_BUDGET_USD` (default 50).
+- Frontend reads `VITE_LUXMI_WORKER` for the Worker origin (`src/advisor/worker.ts`
+  `workerUrl()`, inlined by Vite in the browser; falls back to `process.env` so
+  vitest can `vi.stubEnv`). Dashboard header shows `BalanceBadge` ("≈ $X left of
+  $Y Modal budget", colored green → tension → red) polled every 60s; hidden when
+  the Worker URL isn't set.
+- Deleted in the overhaul: `src/advisor/providers.ts`, `src/advisor/stream.ts`,
+  `src/store/useAdvisor.ts` (provider/model/key picker is gone — no user-facing
+  model selection anymore). `luxmily-advisor-v1` localStorage key is obsolete.
+- Note: Modal's OpenAI-compat streaming only returns `usage` when
+  `stream_options.include_usage` is set — the Worker forces both that and
+  `stream: true`, and injects `model` (clients never send a model id).
 
 ## About sheet (added last)
 
@@ -104,13 +117,16 @@ src/theme/tokens.ts      C palette, money(), pct()
 
 ## Testing
 
-- 5 test files, 56 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
-  (5), `export/export.test.ts` (5), `advisor/advisor.test.ts` (18),
+- 5 test files, 49 tests: `engine/engine.test.ts` (16), `engine/location.test.ts`
+  (5), `export/export.test.ts` (5), `advisor/advisor.test.ts` (11),
   `smoke.test.tsx` (12, real jsdom mount).
 - Smoke tests rely on `aria-label`s: "Household income before tax per month",
   "Zip code (optional)", "Take-home pay per month", `View: ${label}` buttons,
   "Export budget", "Reset to baseline", "Ask Luxmi", "About",
   `${label} plan` / `${label} observed` inputs. Keep them when breaking UI.
+- Advisor tests stub `VITE_LUXMI_WORKER` with `vi.stubEnv` + a fake
+  `globalThis.fetch` (SSE stream / JSON). `workerUrl()` reads
+  `import.meta.env` first, then `process.env` (vitest stubEnv target).
 - `npm test` + `npm run build` must pass before pushing.
 
 ## Housekeeping
@@ -118,46 +134,25 @@ src/theme/tokens.ts      C palette, money(), pct()
 - `index.html` title = `Luxmi.ly`. Branding strings: "Luxmi.ly" (wordmark,
   export `app`, print header).
 - `noUnusedLocals`/`noUnusedParameters` are on — dead code fails the build.
-- **Advisor settings hygiene:** `useAdvisor.setProvider` clears the persisted
-  `baseUrl` override (stale override = classic 405/404 source) **and the
-  `customModel` id**, reseeding `modelId` via exported `defaultModelFor(providerId)`
-  (YAML `models` win, else registry `defaultModel`). The UI adds a **Custom
-  model id** text field — `effectiveModelId()` = typed custom id, else picker
-  (dropdown has a "Custom model id…" sentinel). Keeping the YAML `models:`
-  block in sync with `providers.ts` is enforced by a test. AdvisorSheet reseeds
-  invalid persisted model ids on open and prints the effective endpoint+model
-  under the Ask button. `stream.ts` parseError now surfaces the provider's raw
-  status/message/type (429 explicitly labeled); requests send
-  `accept: text/event-stream`.
-- **Hardcoded model lists are fallbacks only.** Each provider has a
-  `fetchModelsList(apiKey)` (Groq/Google/Anthropic/OpenAI/OpenRouter/Ollama all
-  implement it) that pulls the ACTUAL catalog from the provider API when a key
-  is present, filtered to chat-capable models (Groq excludes whisper/prompt-guard/
-  safeguard/compound; OpenRouter shows only `$0` models, capped at 40; Google
-  only `generateContent` models). `fetchAvailableModels(provider, key)` caches
-  per (provider, key-prefix) and falls back to the hardcoded `models` on
-  failure. AdvisorSheet syncs the dropdown on open/key change (label shows
-  "syncing…" then "from your key").
-- **Groq free tier caps ~8,000 tokens per request (TPM).** The full Luxmi
-  budget JSON (~26–30KB ≈ 8.5K+ tokens) exceeds it → HTTP 413 "Request too
-  large … TPM: Limit 8000, Requested N". Fix: **compact prompt**. Providers
-  flagged `compactPrompt: true` (Groq) send `toJSON(r, true)` — minified JSON
-  with `sourceUrl`/`benchMedianNote`/sources-URLs stripped (~53% of the chars,
-  ~6.4K tokens, verified 200 OK). Other providers send the untouched export.
-  Verified live on 2026-09-15 with a real Groq key: gpt-oss-120b/20b accept
-  compact, reject full; Google `gemini-2.5-flash` is the confirmed default
-  (`gemini-3.5-flash` and `gemini-flash-latest` alias 503 on OpenAI-compat).
-- **Google catalog confirmed** (41 chat models via /v1beta/models, key works):
-  `gemini-2.5-flash/pro` (live), `gemini-3-flash-preview`, `gemini-3.1-pro-preview`.
-  No `gemini-3.5-flash` today → default/fallback = `gemini-2.5-flash`.
-- Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push to
-  `main` (`VITE_BASE: /luxmily/`). Pushing is the ONLY step needed to change
-  providers/models on github.io — but `localStorage` `luxmily-advisor-v1`
-  survives deploys, so a browser with a stale baseUrl/model id keeps failing
-  even on the new build (provider switch clears both).
+- **Modal has NO live balance API** (SDK = usage reports only). So the "≈ $X
+  left of $Y Modal budget" header badge and the ✨ per-request cost are
+  **estimated from a Worker-side ledger** — budget minus sum of
+  usage-tokens×price (per-1M in/out prices are `MODAL_IN_PRICE`/`MODAL_OUT_PRICE`,
+  budget `MODAL_BUDGET_USD`). Tune those for the endpoint's real billing.
+- The Worker is OpenAI-compat-only now: no Anthropic schema, no providers
+  registry, no per-key model fetch, no compact Groq prompt, no Ollama path.
+  `toJSON(r, compact)` in export.ts still supports the compact mode (kept +
+  tested); nothing calls it with `true` anymore. `luxmily-advisor-v1`
+  localStorage is obsolete — no cleanup code needed (store is gone), but stale
+  keys linger harmlessly in old browsers.
+- Deploy: `.github/workflows/deploy.yml` rebuilds+deploys Pages on every push
+  to `main` (`VITE_BASE: /luxmily/`, `VITE_LUXMI_WORKER: ${{ vars.LUXMI_WORKER_URL }}`
+  — set that repo variable to the worker URL). The Worker deploys independently
+  from `worker/` (`npx wrangler deploy`); `MODAL_PROXY_TOKEN` is a secret.
 - Deleted already as cleanup: `pacing.ts`, flywheel components/old store files,
   `SPRING`/`LOCK_LABEL` tokens, unused `themeId` export, unused `framer-motion`
-  dependency.
+  dependency; and in the Modal overhaul `src/advisor/providers.ts`,
+  `src/advisor/stream.ts`, `src/store/useAdvisor.ts`.
 - Commit message style: short imperative sentence (e.g. "Add Luxmi AI budget
   advisor (private YAML prompt + full-budget JSON input)").
 
@@ -169,3 +164,5 @@ src/theme/tokens.ts      C palette, money(), pct()
 - Per-ZIP precision: swap the embedded `metro-cola.ts` table for a runtime
   ACS/geocoder provider behind the same `locationForZip` shape (needs a Census
   API key and CORS, which is why it's embedded today).
+- If Modal ever exposes a real account balance/credits endpoint, point the
+  Worker's `/api/balance` at it and drop the ledger estimate.

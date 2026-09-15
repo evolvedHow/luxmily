@@ -1,29 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, Loader2, Sparkles, X } from 'lucide-react'
-import { ADVISOR_PROVIDERS, AdvisorModel, advisorProvider, fetchAvailableModels } from '../advisor/providers'
+import { Loader2, Sparkles, X } from 'lucide-react'
 import { buildLuxmiSystem, buildLuxmiUserPrompt } from '../advisor/prompt'
-import { streamLuxmi } from '../advisor/stream'
-import { defaultModelFor, effectiveModelId, useAdvisor } from '../store/useAdvisor'
+import { askAdvisor, fetchBalance, isConfigured, type Balance } from '../advisor/worker'
 import { useResolved } from '../store/useBudget'
 import { C } from '../theme/tokens'
 
 /**
- * Luxmi — the AI budget advisor. A bottom sheet: pick provider + model, paste
- * a key (or run local Ollama with none), and get a streamed narrative built
- * from the full budget JSON. The system prompt & model params live in
- * src/advisor/luxmi.yaml (private operator config) — not here.
+ * Luxmi — the AI budget advisor. A bottom sheet: one Ask button, streamed
+ * narrative built from the full budget JSON. The system prompt & model params
+ * live in src/advisor/luxmi.yaml (private operator config) — not here.
+ * The model is served by a Modal Dedicated Endpoint and proxied through a
+ * Cloudflare Worker (the browser never holds an API key).
  */
 
 export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const r = useResolved()
-  const { providerId, modelId, customModel, apiKey, baseUrl, setProvider, setModel, setCustomModel, setApiKey, setBaseUrl } =
-    useAdvisor()
-  const provider = advisorProvider(providerId)
   const [text, setText] = useState('')
   const [status, setStatus] = useState<'' | 'streaming' | 'error'>('')
   const [error, setError] = useState('')
-  const [liveModels, setLiveModels] = useState<AdvisorModel[]>(provider.models)
-  const [modelsLoading, setModelsLoading] = useState(false)
+  const [costUsd, setCostUsd] = useState<number | null>(null)
+  const [balance, setBalance] = useState<Balance | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const proseRef = useRef<HTMLDivElement | null>(null)
 
@@ -33,6 +29,7 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
       setText('')
       setStatus('')
       setError('')
+      setCostUsd(null)
     }
   }, [open])
 
@@ -40,64 +37,34 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
     if (status === 'streaming' && proseRef.current) proseRef.current.scrollTop = proseRef.current.scrollHeight
   }, [text, status])
 
-  // A model id persisted from an older build (or another provider) that isn't
-  // offered anymore would be sent verbatim to a provider that retired it — reseed
-  // to the current default instead of failing with 400/404. Skipped while the live
-  // list is loading (the hardcoded fallback may not contain a live-only model).
-  useEffect(() => {
-    if (open && !modelsLoading && !customModel.trim() && !liveModels.some((m) => m.id === modelId)) {
-      setModel(defaultModelFor(provider.id))
-    }
-  }, [open, providerId, modelsLoading])
-
-  // Pull the provider's ACTUAL model list through its API whenever the key is
-  // present. Falls back to the hardcoded list on failure (CORS, no key, …).
+  // Fetch balance when the sheet opens.
   useEffect(() => {
     if (!open) return
-    let cancelled = false
-    setLiveModels(provider.models)
-    setModelsLoading(true)
-    fetchAvailableModels(provider, apiKey.trim())
-      .then((list) => {
-        if (!cancelled && list.length > 0) setLiveModels(list)
-      })
-      .finally(() => {
-        if (!cancelled) setModelsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, providerId, apiKey])
+    fetchBalance().then(setBalance)
+  }, [open])
 
   const ask = async () => {
-    if (provider.requireKey && !apiKey.trim()) {
-      setStatus('error')
-      setError(`Add a ${provider.label} API key first — it only ever lives in this browser.`)
-      return
-    }
     abortRef.current?.abort()
     const ac = new AbortController()
     abortRef.current = ac
     setText('')
     setStatus('streaming')
     setError('')
+    setCostUsd(null)
     try {
-      await streamLuxmi({
-        kind: provider.kind,
-        url: baseUrl.trim() || provider.url,
-        apiKey,
-        model: effectiveModelId(provider.id, modelId, customModel),
+      const result = await askAdvisor({
         system: buildLuxmiSystem(),
-        prompt: buildLuxmiUserPrompt(r, provider.compactPrompt),
-        headers: provider.headers,
+        prompt: buildLuxmiUserPrompt(r),
         signal: ac.signal,
         onDelta: (t) => setText((prev) => prev + t),
       })
+      setCostUsd(result.costUsd ?? null)
+      fetchBalance().then(setBalance)
       setStatus('')
     } catch (e) {
       if (ac.signal.aborted) return
       setStatus('error')
-      setError(e instanceof Error ? e.message : 'Something went wrong calling the model.')
+      setError(e instanceof Error ? e.message : 'Something went wrong calling Luxmi.')
     }
   }
 
@@ -126,159 +93,61 @@ export function AdvisorSheet({ open, onClose }: { open: boolean; onClose: () => 
           </button>
         </div>
 
-        {/* Settings */}
-        <div className="px-4 py-3 border-b space-y-2.5 overflow-y-auto" style={{ borderColor: C.border }}>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Label>Provider</Label>
-              <select
-                value={providerId}
-                onChange={(e) => setProvider(e.target.value)}
-                className="w-full rounded-xl border px-2.5 py-2 text-[13px] outline-none"
-                style={{ background: C.surface, borderColor: C.border, color: C.text }}
-                aria-label="Advisor provider"
+        {!isConfigured() ? (
+          <div className="px-4 py-6 text-[12px] leading-relaxed" style={{ color: C.muted }}>
+            Luxmi's AI advisor is not configured yet. The site operator needs to
+            set <span className="tnum">VITE_LUXMI_WORKER</span> in the build
+            environment and deploy a Cloudflare Worker + Modal Dedicated Endpoint.
+            See <span className="tnum">worker/README.md</span> for setup.
+          </div>
+        ) : (
+          <>
+            {/* Action */}
+            <div className="px-4 pt-3">
+              <button
+                onClick={ask}
+                disabled={status === 'streaming'}
+                className="w-full rounded-2xl py-3 text-[14px] font-semibold flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
+                style={{ background: C.cap, color: '#1b1b1d' }}
+                aria-label="Ask Luxmi"
               >
-                {ADVISOR_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-1 text-[10.5px] leading-snug" style={{ color: C.muted }}>
-                {provider.badge && <span style={{ color: C.green }}>{provider.badge} · </span>}
-                {provider.note}
-                {provider.keyUrl && (
-                  <a href={provider.keyUrl} target="_blank" rel="noreferrer noopener" className="underline underline-offset-2 inline-flex items-center gap-0.5" style={{ color: C.cap }}>
-                    {' '}
-                    Get a key <ExternalLink size={10} />
-                  </a>
-                )}
-              </div>
-            </div>
-            <div className="flex-1">
-              <Label>Model{modelsLoading ? ' (syncing…)' : provider.fetchModelsList ? ' (from your key)' : ''}</Label>
-              <select
-                value={customModel.trim() ? '__custom' : modelId}
-                onChange={(e) => (e.target.value === '__custom' ? setCustomModel(modelId) : setModel(e.target.value))}
-                className="w-full rounded-xl border px-2.5 py-2 text-[13px] outline-none"
-                style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
-                aria-label="Advisor model"
-              >
-                {liveModels.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                    {m.free ? ' (≈free)' : ''}
-                  </option>
-                ))}
-                <option value="__custom">Custom model id…</option>
-              </select>
-              {customModel.trim() && (
-                <div className="mt-1 text-[10.5px]" style={{ color: C.cap }}>
-                  Using custom model — edit the field below it.
+                {status === 'streaming' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                {status === 'streaming' ? 'Luxmi is thinking…' : 'Ask Luxmi'}
+              </button>
+              {status === 'error' && (
+                <div className="mt-2 text-[11.5px] leading-snug" style={{ color: C.red }}>
+                  {error}
                 </div>
               )}
             </div>
-          </div>
 
-          <div>
-            <Label>Custom model id (optional — overrides the picker)</Label>
-            <input
-              value={customModel}
-              onChange={(e) => setCustomModel(e.target.value)}
-              placeholder={liveModels.map((m) => m.id).slice(0, 3).join(' · ')}
-              aria-label="Advisor custom model"
-              className="w-full rounded-xl border px-2.5 py-2 text-[12px] outline-none tnum"
-              style={{ background: C.surface, borderColor: customModel.trim() ? `${C.cap}99` : C.border, color: C.text }}
-            />
-            <div className="mt-1 text-[10.5px]" style={{ color: C.muted }}>
-              Type any model id exactly as your provider lists it (e.g. <span className="tnum">gemini-3.5-flash</span>). It wins over the picker; cleared when you switch provider.
+            {/* Narrative */}
+            <div ref={proseRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-24">
+              {text ? (
+                <Prose text={text} />
+              ) : (
+                <div className="text-[12px] leading-relaxed" style={{ color: C.muted }}>
+                  Luxmi reads your full budget (the exact JSON you can download), compares each theme to your cohort benchmarks, flags anomalies, and suggests reallocations. Try it.
+                </div>
+              )}
             </div>
-          </div>
 
-          {provider.requireKey ? (
-            <div>
-              <Label>API key</Label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={provider.keyHint}
-                aria-label="Advisor API key"
-                autoComplete="off"
-                className="w-full rounded-xl border px-2.5 py-2 text-[13px] outline-none tnum"
-                style={{ background: C.surface, borderColor: C.border, color: C.text }}
-              />
-              <div className="mt-1 text-[10.5px]" style={{ color: C.muted }}>
-                Stored only in <span className="tnum">localStorage</span> on this device — the request goes straight to {provider.label}, never through a server. The model list syncs from {provider.label}'s live catalog with this key.
-              </div>
+            {/* Cost + balance footer */}
+            <div className="px-4 pb-4 pt-1 flex items-center justify-between" style={{ color: C.muted }}>
+              <span className="text-[10px] tnum">
+                {costUsd != null
+                  ? `this request ≈ $${costUsd.toFixed(6)}`
+                  : 'system prompt & params: private config in luxmi.yaml'}
+              </span>
+              {balance && (
+                <span className="text-[10px] tnum">
+                  ≈ ${balance.balanceUsd.toFixed(2)} left of ${balance.budgetUsd.toFixed(0)}
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="text-[11px] px-3 py-2 rounded-xl border" style={{ borderColor: `${C.green}44`, background: `${C.green}12`, color: C.green }}>
-              No key needed — Ollama runs on your machine. Install it, run <span className="tnum">ollama pull llama3.2</span>, and pick a model above.
-            </div>
-          )}
-
-          <div>
-            <Label>Base URL (optional override)</Label>
-            <input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder={provider.url}
-              aria-label="Advisor base URL"
-              className="w-full rounded-xl border px-2.5 py-2 text-[12px] outline-none tnum"
-              style={{ background: C.surface, borderColor: C.border, color: C.text }}
-            />
-          </div>
-        </div>
-
-        {/* Action */}
-        <div className="px-4 pt-3">
-          <button
-            onClick={ask}
-            disabled={status === 'streaming'}
-            className="w-full rounded-2xl py-3 text-[14px] font-semibold flex items-center justify-center gap-2 transition-opacity disabled:opacity-50"
-            style={{ background: C.cap, color: '#1b1b1d' }}
-            aria-label="Ask Luxmi"
-          >
-            {status === 'streaming' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            {status === 'streaming' ? 'Luxmi is thinking…' : 'Ask Luxmi'}
-          </button>
-          {status === 'error' && (
-            <div className="mt-2 text-[11.5px] leading-snug" style={{ color: C.red }}>
-              {error}
-            </div>
-          )}
-          <div className="mt-1 text-[9.5px] tnum leading-snug" style={{ color: C.muted }}>
-            requests → {baseUrl.trim() || provider.url} · model {effectiveModelId(provider.id, modelId, customModel)}
-            {provider.compactPrompt ? ' · condensed payload (fits Groq free tier)' : ''}
-          </div>
-        </div>
-
-        {/* Narrative */}
-        <div ref={proseRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2 min-h-24">
-          {text ? (
-            <Prose text={text} />
-          ) : (
-            <div className="text-[12px] leading-relaxed" style={{ color: C.muted }}>
-              Luxmi reads your full budget (the exact JSON you can download), compares each theme to your cohort benchmarks, flags anomalies, and suggests reallocations. Try it.
-            </div>
-          )}
-        </div>
-
-        <div className="px-4 pb-4 pt-1 flex items-center justify-between">
-          <span className="text-[10px]" style={{ color: C.muted }}>
-            System prompt & model params: private config in <span className="tnum">src/advisor/luxmi.yaml</span>
-          </span>
-        </div>
+          </>
+        )}
       </div>
-    </div>
-  )
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: C.muted }}>
-      {children}
     </div>
   )
 }

@@ -47,14 +47,5 @@ system: |
 temperature: 0.4
 max_tokens: 1600
 
-# Optional: default model per provider (provider id → model id). Overrides
-# src/advisor/providers.ts. Omit a line to keep that provider's built-in
-# default. Keep ids in sync with providers.ts so the dropdown and the request
-# never disagree. Provider ids: groq, google, anthropic, openai, openrouter, ollama.
-models:
-  groq: openai/gpt-oss-120b
-  google: gemini-2.5-flash
-  anthropic: claude-3-5-sonnet-latest
-  openai: gpt-4o-mini
-  openrouter: meta-llama/llama-3.3-70b-instruct:free
-  ollama: llama3.2
+# Model is set server-side on the Cloudflare Worker (MODAL_MODEL env var).
+# The frontend never needs to know which model is running.

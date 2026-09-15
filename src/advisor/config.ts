@@ -12,8 +12,6 @@ export interface LuxmiConfig {
   system: string
   temperature: number
   max_tokens: number
-  /** Provider id → model id overrides. */
-  models: Record<string, string>
 }
 
 function asRecord(v: unknown): Record<string, unknown> {
@@ -39,17 +37,10 @@ export function loadLuxmiConfig(): LuxmiConfig {
     })(),
   )
 
-  const models: Record<string, string> = {}
-  for (const [id, m] of Object.entries(asRecord(doc.models))) {
-    const v = asString(m, '')
-    if (v) models[id] = v
-  }
-
   return {
     system: asString(doc.system, 'You are Luxmi — a warm, practical budget advisor.'),
     temperature: asNumber(doc.temperature, 0.4),
     max_tokens: Math.max(1, Math.round(asNumber(doc.max_tokens, 1600))),
-    models,
   }
 }
 
@@ -60,12 +51,7 @@ export function advisorSystem(): string {
   return LUXMI_CONFIG.system
 }
 
-/** Generation params from the YAML — shared by every provider request. */
+/** Generation params from the YAML — shared by every request. */
 export function advisorParams(): { temperature: number; max_tokens: number } {
   return { temperature: LUXMI_CONFIG.temperature, max_tokens: LUXMI_CONFIG.max_tokens }
-}
-
-/** YAML override for a provider's default model, if any. */
-export function advisorDefaultModel(providerId: string): string | undefined {
-  return LUXMI_CONFIG.models[providerId]
 }
