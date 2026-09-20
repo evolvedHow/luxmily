@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Info, RotateCcw, Sparkles } from 'lucide-react'
+import { Info, RotateCcw, Sparkles, TrendingUp } from 'lucide-react'
 import { AboutSheet } from './components/AboutSheet'
 import { AdvisorSheet } from './components/AdvisorSheet'
 import { CapCard } from './components/CapCard'
@@ -9,12 +9,18 @@ import { PayFirstStrip } from './components/PayFirstStrip'
 import { PrintSheet } from './components/PrintSheet'
 import { ThemeCard } from './components/ThemeCard'
 import { ViewpointToggle } from './components/ViewpointToggle'
+import { PiiView } from './components/pi/PiiView'
 import { C } from './theme/tokens'
 import { useBudget, useResolved } from './store/useBudget'
+import { usePii } from './store/usePii'
 import { fetchBalance, isConfigured, type Balance } from './advisor/worker'
 
 export default function App() {
   const initialized = useBudget((s) => s.initialized)
+  const initPii = usePii((s) => s.init)
+  useEffect(() => {
+    initPii()
+  }, [initPii])
   if (!initialized) return <Onboarding />
   return <Dashboard />
 }
@@ -25,6 +31,9 @@ function Dashboard() {
   const reset = useBudget((s) => s.reset)
   const [advisorOpen, setAdvisorOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [piiOpen, setPiiOpen] = useState(false)
+
+  if (piiOpen) return <PiiView onBack={() => setPiiOpen(false)} />
 
   return (
     <div>
@@ -41,6 +50,9 @@ function Dashboard() {
             <BalanceBadge />
           </div>
           <div className="flex items-center gap-1.5">
+            <IconBtn onClick={() => setPiiOpen(true)} label="Personal CPI" active={false}>
+              <TrendingUp size={15} />
+            </IconBtn>
             <IconBtn onClick={() => setAdvisorOpen(true)} label="Ask Luxmi">
               <Sparkles size={15} />
             </IconBtn>
