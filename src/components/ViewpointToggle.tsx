@@ -5,7 +5,6 @@ import type { Viewpoint } from '../engine/types'
 const VIEWS: { id: Viewpoint; label: string; hint: string }[] = [
   { id: 'top-down', label: 'Top-down', hint: 'Shares of the cap' },
   { id: 'planned', label: 'Planned', hint: '$ per category' },
-  { id: 'observed', label: 'Observed', hint: 'What you really spend' },
 ]
 
 export function ViewpointToggle() {
@@ -13,7 +12,7 @@ export function ViewpointToggle() {
   const setView = useBudget((s) => s.setView)
 
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-2xl border p-1" style={{ background: C.surface, borderColor: C.border }}>
+    <div className="grid grid-cols-2 gap-1 rounded-2xl border p-1" style={{ background: C.surface, borderColor: C.border }}>
       {VIEWS.map((v) => {
         const on = v.id === view
         return (

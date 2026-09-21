@@ -32,8 +32,8 @@ function distinctSources(t: BudgetTheme): { label: string; url?: string }[] {
  * The single entry point the UI calls. Theme shares always sum to 1 — the solver
  * re-normalizes whichever theme the user drags so the percentages stay enforced
  * green. Dollars are the user's own: a category plan over a theme's allocation is
- * reported red, and observed spend is never recorded or auto-fixed — the app only
- * says what it means: % of cap, vs plan, and what's free to reallocate.
+ * reported red. Nothing is ever recorded about real spending — the optimizer only
+ * reads the plan.
  */
 export function resolve(budget: Budget): ResolvedBudget {
   const cap = Math.max(0, budget.takeHome)
@@ -50,19 +50,13 @@ export function resolve(budget: Budget): ResolvedBudget {
 
     const cats: ResolvedCategory[] = t.cats.map((c) => {
       const plan = Math.max(0, c.plan)
-      const observed = Math.max(0, c.observed)
       const median = medianDollars(c, income, cap, scale)
-      const delta = observed > 0 ? observed - plan : 0
       return {
         id: c.id,
         themeId: t.id,
         label: c.label,
         lock: c.lock,
         plan,
-        observed,
-        observedPct: cap > 0 ? observed / cap : 0,
-        delta,
-        deltaPct: plan > 0 ? delta / plan : 0,
         benchAvg: Math.round(benchDollars(c, income, cap, scale)),
         benchMedian: median === undefined ? undefined : Math.round(median),
         benchMedianNote: c.medianNote,
@@ -70,12 +64,10 @@ export function resolve(budget: Budget): ResolvedBudget {
         benchUrl: c.url,
         payFirst: c.payFirst,
         flex: c.flex,
-        surplus: observed > 0 ? Math.max(0, plan - observed) : 0,
       }
     })
 
     const planTotal = cats.reduce((s, c) => s + c.plan, 0)
-    const observedTotal = cats.reduce((s, c) => s + c.observed, 0)
     return {
       id: t.id,
       label: t.label,
@@ -84,10 +76,7 @@ export function resolve(budget: Budget): ResolvedBudget {
       share,
       allocation,
       planTotal,
-      observedTotal,
       planOver: Math.max(0, planTotal - allocation),
-      observedOverPlan: cats.reduce((s, c) => s + Math.max(0, c.delta), 0),
-      reallocatable: cats.reduce((s, c) => s + c.surplus, 0),
       benchShare: t.benchShare,
       benchSource: t.benchSource,
       sources: distinctSources(t),
@@ -96,10 +85,7 @@ export function resolve(budget: Budget): ResolvedBudget {
   })
 
   const totalPlan = themes.reduce((s, t) => s + t.planTotal, 0)
-  const totalObserved = themes.reduce((s, t) => s + t.observedTotal, 0)
   const totalPlanOver = themes.reduce((s, t) => s + t.planOver, 0)
-  const observedOverPlan = themes.reduce((s, t) => s + t.observedOverPlan, 0)
-  const reallocatable = themes.reduce((s, t) => s + t.reallocatable, 0)
   const payFirst = themes.flatMap((t) => t.cats.filter((c) => c.payFirst))
 
   return {
@@ -112,10 +98,7 @@ export function resolve(budget: Budget): ResolvedBudget {
     themes,
     payFirst,
     totalPlan,
-    totalObserved,
     totalPlanOver,
-    observedOverPlan,
-    reallocatable,
     buffer: cap - totalPlan,
     ok: totalPlanOver === 0,
   }

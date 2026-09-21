@@ -5,7 +5,7 @@
 
 export type LockMode = 'hard' | 'floor' | 'ceiling' | 'elastic'
 
-export type Viewpoint = 'top-down' | 'planned' | 'observed'
+export type Viewpoint = 'top-down' | 'planned'
 
 /** Where a budget is localized (user ZIP → area). `cola` / `rentFactor` are
  *  multipliers against US average (1.00 = national). Grounded in public BEA RPP
@@ -38,8 +38,6 @@ export interface BudgetCategory extends Bench {
   label: string
   /** Dollars/month the user commits to this line. */
   plan: number
-  /** Dollars/month the user has discovered they actually spend. 0 = not entered. */
-  observed: number
   lock: LockMode
   /** Pay-yourself-first field (401k / Roth / savings), shown on the strip. */
   payFirst: boolean
@@ -79,14 +77,6 @@ export interface ResolvedCategory {
   label: string
   lock: LockMode
   plan: number
-  /** The user's own observed spend. 0 means "haven't checked this line yet". */
-  observed: number
-  /** observed ÷ Cap × 100 — what the discovered number actually means. */
-  observedPct: number
-  /** observed − plan. Positive = over plan. */
-  delta: number
-  /** delta ÷ plan (only when observed > 0). */
-  deltaPct: number
   benchAvg: number
   benchMedian?: number
   benchMedianNote?: string
@@ -94,8 +84,6 @@ export interface ResolvedCategory {
   benchUrl?: string
   payFirst: boolean
   flex: boolean
-  /** Surplus candidate: plan − observed, only when observed < plan. */
-  surplus: number
 }
 
 export interface ResolvedTheme {
@@ -109,13 +97,8 @@ export interface ResolvedTheme {
   /** share × Cap. */
   allocation: number
   planTotal: number
-  observedTotal: number
   /** Dollars by which plans exceed the theme allocation. */
   planOver: number
-  /** What the user must find elsewhere. */
-  observedOverPlan: number
-  /** Room this theme gave back where spending came in below plan. */
-  reallocatable: number
   benchShare: number
   benchSource: string
   /** Distinct sources backing this theme's rows, each with its link. */
@@ -136,12 +119,7 @@ export interface ResolvedBudget {
   /** Flattened pay-yourself-first fields for the mandatory strip. */
   payFirst: ResolvedCategory[]
   totalPlan: number
-  totalObserved: number
   totalPlanOver: number
-  /** Total spending discovered above plan. */
-  observedOverPlan: number
-  /** What came in under plan and is free to move elsewhere. */
-  reallocatable: number
   /** Cap − totalPlan; negative means the plan overruns the Cap. */
   buffer: number
   /** True when the whole budget is green: plans fit every theme's allocation. */

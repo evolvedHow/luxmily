@@ -101,7 +101,7 @@ export function Onboarding() {
         <div className="h-4" />
 
         <label className="block text-[12px] mb-1" style={{ color: C.muted }}>
-          Take-home pay · what you can actually spend / month
+          Take-home pay · the envelope you plan from / month
         </label>
         <input
           type="number"

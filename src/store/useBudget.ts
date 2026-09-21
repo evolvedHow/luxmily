@@ -18,11 +18,9 @@ interface BudgetState {
   view: Viewpoint
   /** Theme target shares, keyed by theme id. */
   share: Record<string, number>
-  /** Category plan $ / lock / observed spend, keyed `${theme}.${cat}`. */
+  /** Category plan $ / lock, keyed `${theme}.${cat}`. */
   plan: Record<string, number>
   catLock: Record<string, LockMode>
-  /** What the user has discovered they actually spend per month. 0 = unentered. */
-  observed: Record<string, number>
 }
 
 interface Actions {
@@ -30,7 +28,6 @@ interface Actions {
   setView: (v: Viewpoint) => void
   setShare: (themeId: string, share: number) => void
   setPlan: (key: string, value: number) => void
-  setObserved: (key: string, value: number) => void
   setCatLock: (key: string, lock: LockMode) => void
   setZip: (zip: string) => void
   reset: () => void
@@ -47,7 +44,6 @@ const initial: BudgetState = {
   share: {},
   plan: {},
   catLock: {},
-  observed: {},
 }
 
 function seeded(cap: number, incomeMonthly: number, zip = '') {
@@ -60,7 +56,6 @@ function seeded(cap: number, incomeMonthly: number, zip = '') {
     share: s.share,
     plan: s.plan,
     catLock: s.catLock,
-    observed: s.observed,
   }
 }
 
@@ -78,7 +73,6 @@ export const useBudget = create<BudgetState & Actions>()(
         set({ share: { ...get().share, [themeId]: Math.min(1, Math.max(0, share)) } }),
 
       setPlan: (key, value) => set({ plan: { ...get().plan, [key]: Math.max(0, value) } }),
-      setObserved: (key, value) => set({ observed: { ...get().observed, [key]: Math.max(0, value) } }),
       setCatLock: (key, lock) => set({ catLock: { ...get().catLock, [key]: lock } }),
       setZip: (zip) => set({ zip }),
 
@@ -102,11 +96,10 @@ export function useResolved(): ResolvedBudget {
   const zip = useBudget((s) => s.zip ?? '')
   const share = useBudget((s) => s.share)
   const plan = useBudget((s) => s.plan)
-  const observed = useBudget((s) => s.observed)
   const catLock = useBudget((s) => s.catLock)
 
   return useMemo(() => {
     const loc = locationForZip(zip) ?? undefined
-    return resolve(buildBudget({ incomeMonthly, takeHome, cohortId, share, plan, observed, catLock }, loc))
-  }, [incomeMonthly, takeHome, cohortId, zip, share, plan, observed, catLock])
+    return resolve(buildBudget({ incomeMonthly, takeHome, cohortId, share, plan, catLock }, loc))
+  }, [incomeMonthly, takeHome, cohortId, zip, share, plan, catLock])
 }

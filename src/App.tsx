@@ -62,7 +62,7 @@ function Dashboard() {
         {/* Pay first */}
         {r.payFirst.length > 0 && (
           <div className="mt-3">
-            <PayFirstStrip rows={r.payFirst} view={view} />
+            <PayFirstStrip rows={r.payFirst} />
           </div>
         )}
 

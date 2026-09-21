@@ -14,7 +14,7 @@ const PRINCIPLES: { k: string; v: string }[] = [
   { k: 'Top-down, not bottom-up', v: 'You never guess line items first. One number — your take-home — is the hard cap; themes get shares of it; categories fit inside their themes. Everything is solvable because everything has an envelope.' },
   { k: 'Pay yourself first', v: '401(k) / Roth / emergency sit on their own mandatory strip with benchmark rails. Savings is decided before spending, never the leftover.' },
   { k: 'No credit-card debt', v: 'If you carry high-interest balances, pay them off before growing anything else — no plan that borrows against the future is a plan.' },
-  { k: 'Red is information, not shame', v: 'Over-plan and over-observed never auto-rewrite anything. They tell you what to trim or where to fund from — take it from elsewhere, consciously.' },
+  { k: 'Red is information, not shame', v: 'Over-plan never auto-rewrites anything. It tells you what to trim or where to fund from — take it from elsewhere, consciously.' },
   { k: 'Averages are for reference', v: 'The benchmark numbers steer the starting point and the “is this sane?” rail. They are your income cohort’s typical spending — not a must, not a maximum. Your plan is yours.' },
 ]
 

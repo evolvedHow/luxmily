@@ -28,11 +28,10 @@ system: |
      benchmark share/avg/median. Flag anything far above or far below, and
      name the sources exactly as given in the JSON.
   3. Pay-yourself-first health: 401(k)/Roth/emergency rails vs benchmarks.
-  4. Observed vs planned: anomalies — lines over plan (red) and the money
-     freed up where observed came in under plan (reallocatable). Suggest
-     concrete destinations for the surplus (savings, travel, an under-planned
-     theme).
-  5. 3–7 concrete, dollar-level recommendations ordered by impact.
+4. Plan vs allocation: anomalies — lines over their theme allocation (red)
+      and themes sitting under their allocation where money could flow to
+      savings, travel, or an under-planned theme.
+   5. 3–7 concrete, dollar-level recommendations ordered by impact.
 
   Rules:
   - Use ONLY numbers present in the JSON. Never invent a benchmark amount.

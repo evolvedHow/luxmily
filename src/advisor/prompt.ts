@@ -7,10 +7,10 @@ import { advisorSystem } from './config'
  *
  * The USER prompt is the exact JSON document the app downloads (toJSON) —
  * the same "total picture" the user can save. It carries every user input
- * (income, take-home/cap, cohort, theme shares, per-category plans, locks,
- * observed spend) plus every derived parameter the app computes (% of cap,
- * deltas, surplus, reallocatable, benchmark rails, sources). Nothing else is
- * invented by the client; the model works only from this JSON.
+ * (income, take-home/cap, cohort, theme shares, per-category plans, locks)
+ * plus every derived parameter the app computes (% of cap, benchmark rails,
+ * sources). Nothing else is invented by the client; the model works only
+ * from this JSON. Real spending is never in there — it's a planner.
  *
  * The SYSTEM prompt is the private YAML config (src/advisor/luxmi.yaml) —
  * owned by the operator, compiled in at build time, never shown in the UI.
@@ -33,14 +33,14 @@ export function buildLuxmiUserPrompt(r: ResolvedBudget, compact = false): string
   return [
     `Here is my complete budget as a JSON document — the same file the app exports${compact ? ' (condensed for size: minified, source links stripped)' : ''}. It holds ALL of my inputs and every computed parameter:`,
     `- income ${Math.round(r.incomeMonthly).toLocaleString()}/mo, take-home cap ${Math.round(r.cap).toLocaleString()}, cohort "${r.cohortLabel}".`,
-    `- Adviser context: cohort avg annual spend, totals (plan / observed / reallocatable / over-plan), cap buffer, ok flag.`,
-    `- ${x.themes.length} themes, each with share vs cohort benchmark share, allocation, plan total, observed total, plan over-runs, reallocatable, and its distinct sources (with URLs).`,
-    `- ${x.payYourselfFirst.length} pay-yourself-first rails and every category: plan, observed, % of cap, delta vs plan, delta % — plus benchmark avg/median and source.`,
+    `- Adviser context: cohort avg annual spend, totals (plan / over-plan), cap buffer, ok flag.`,
+    `- ${x.themes.length} themes, each with share vs cohort benchmark share, allocation, plan total, plan over-runs, and its distinct sources (with URLs).`,
+    `- ${x.payYourselfFirst.length} pay-yourself-first rails and every category: plan, % of cap — plus benchmark avg/median and source.`,
     '',
     '```json',
     json,
     '```',
     '',
-    'Read the JSON carefully. Build the full narrative from it — balance, cohort comparison per theme, pay-yourself-first health, anomalies (plan over-runs, observed over plan, freed-up reallocation), and concrete numbered tips with dollar figures. Only use numbers present in this JSON.',
+    'Read the JSON carefully. Build the full narrative from it — balance, cohort comparison per theme, pay-yourself-first health, anomalies (plan over-runs), and concrete numbered tips with dollar figures. Only use numbers present in this JSON.',
   ].join('\n')
 }

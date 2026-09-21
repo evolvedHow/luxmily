@@ -20,7 +20,6 @@ function resetStore() {
     share: {},
     plan: {},
     catLock: {},
-    observed: {},
   })
 }
 
@@ -104,23 +103,9 @@ describe('App — an optimizer, not a tracker', () => {
     expect(useBudget.getState().plan['food.groceries']).toBe(12000)
   })
 
-  it('observed view: entered spend becomes a % of cap and an over-plan pill', async () => {
+  it('never shows an observed/actual view — optimizer only', async () => {
     await onboard()
-    fireEvent.click(screen.getByRole('button', { name: 'View: Observed' }))
-    fireEvent.change(screen.getByLabelText('Groceries (food at home) observed'), {
-      target: { value: 1000 },
-    })
-    expect(screen.getByText(/over plan/)).toBeTruthy()
-    expect(useBudget.getState().observed['food.groceries']).toBe(1000)
-  })
-
-  it('observed spend below plan is flagged as free to reallocate', async () => {
-    await onboard()
-    fireEvent.click(screen.getByRole('button', { name: 'View: Observed' }))
-    fireEvent.change(screen.getByLabelText('Groceries (food at home) observed'), {
-      target: { value: 300 },
-    })
-    expect(screen.getByText(/free to reallocate/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'View: Observed' })).toBeNull()
   })
 
   it('resets back to the benchmark baseline', async () => {

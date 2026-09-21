@@ -4,11 +4,11 @@ import type { LockMode } from '../engine/types'
  * Benchmark reference set. Every number shown to the user as a guide lives here,
  * tied to an income band ("cohort") and tagged with where it came from.
  *
- * This app is an OPTIMIZER, not a tracker. It never records day-to-day spending.
- * The user types in what they have discovered they actually spend per month and
- * the app answers: "what % of your cap is that, how does it compare to your plan
- * (seeded from the industry avg), and what can you reallocate if it came in
- * lower?"
+ * This app is an OPTIMIZER and nothing else — it plans against the take-home
+ * cap, so it never reads or records real spending. The user sets each category's
+ * plan $ against these averages and the app answers: "how does your plan compare
+ * to the cohort average, is it within the theme's allocation (% of cap), and
+ * where should the next dollar go?"
  *
  * Sources (each number carries its own `source` + `url` so the UI can link to
  * it inside the theme's box):

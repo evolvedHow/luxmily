@@ -8,11 +8,6 @@ export interface ExportCategory {
   flex: boolean
   lock: string
   plan: number
-  observed: number
-  observedPct: number
-  delta: number
-  deltaPct: number
-  surplus: number
   benchAvg: number
   benchMedian?: number
   benchMedianNote?: string
@@ -28,10 +23,7 @@ export interface ExportTheme {
   benchSharePct: number
   allocation: number
   planTotal: number
-  observedTotal: number
   planOver: number
-  reallocatable: number
-  observedOverPlan: number
   source: string
   sources: { label: string; url?: string }[]
   cats: ExportCategory[]
@@ -59,10 +51,7 @@ export interface ExportBudget {
     ok: boolean
     buffer: number
     totalPlan: number
-    totalObserved: number
     totalPlanOver: number
-    observedOverPlan: number
-    totalReallocatable: number
   }
   payYourselfFirst: ExportCategory[]
   themes: ExportTheme[]
@@ -76,11 +65,6 @@ function cat(r: ResolvedCategory): ExportCategory {
     flex: r.flex,
     lock: r.lock,
     plan: r.plan,
-    observed: r.observed,
-    observedPct: Math.round(r.observedPct * 1000) / 10,
-    delta: Math.round(r.delta),
-    deltaPct: r.deltaPct > 0 && r.delta === 0 ? 0 : Math.round(r.deltaPct * 1000) / 10,
-    surplus: Math.round(r.surplus),
     benchAvg: r.benchAvg,
     benchMedian: r.benchMedian,
     benchMedianNote: r.benchMedianNote,
@@ -98,10 +82,7 @@ function theme(t: ResolvedTheme): ExportTheme {
     benchSharePct: Math.round(t.benchShare * 1000) / 10,
     allocation: t.allocation,
     planTotal: t.planTotal,
-    observedTotal: t.observedTotal,
     planOver: t.planOver,
-    reallocatable: t.reallocatable,
-    observedOverPlan: t.observedOverPlan,
     source: t.benchSource,
     sources: t.sources,
     cats: t.cats.map(cat),
@@ -133,10 +114,7 @@ export function toExport(r: ResolvedBudget): ExportBudget {
       ok: r.ok,
       buffer: r.buffer,
       totalPlan: r.totalPlan,
-      totalObserved: r.totalObserved,
       totalPlanOver: r.totalPlanOver,
-      observedOverPlan: r.observedOverPlan,
-      totalReallocatable: r.reallocatable,
     },
     payYourselfFirst: r.payFirst.map(cat),
     themes: r.themes.map(theme),
@@ -190,12 +168,10 @@ export function toCSV(r: ResolvedBudget): string {
   ])
   rows.push(['Optimized (all green)', m.meta.ok ? 'yes' : 'no'])
   rows.push(['Cap - plan buffer', r.buffer])
-  rows.push(['Observed spend', r.totalObserved])
-  rows.push(['Free to reallocate', r.reallocatable])
   rows.push([])
-  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme alloc $', 'Plan over $', 'Observed $', 'Observed % of cap', 'vs plan $', 'Reallocate $', 'Lock', 'Source', 'Source link'])
+  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme alloc $', 'Plan over $', 'Lock', 'Source', 'Source link'])
   for (const t of m.themes) {
-    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', t.planTotal, t.allocation, t.planOver, t.observedTotal, '', '', t.reallocatable, '', t.source, ''])
+    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', t.planTotal, t.allocation, t.planOver, '', t.source, ''])
     for (const c of t.cats) {
       rows.push([
         '',
@@ -205,10 +181,6 @@ export function toCSV(r: ResolvedBudget): string {
         c.plan,
         '',
         '',
-        c.observed,
-        `${c.observedPct}%`,
-        c.delta === 0 ? '' : c.delta,
-        c.surplus,
         c.lock,
         c.benchSource,
         c.sourceUrl ?? '',

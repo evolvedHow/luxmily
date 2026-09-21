@@ -7,7 +7,7 @@ function sample() {
   const sc = scaffold(6800, 10000, 'c4')
   const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc })
   const food = b.themes.find((t) => t.id === 'food')!
-  food.cats[0].observed = 300
+  food.cats[0].plan = 900
   return resolve(b)
 }
 
@@ -20,8 +20,8 @@ describe('toExport', () => {
     expect(x.themes.length).toBeGreaterThan(6)
     expect(x.payYourselfFirst.length).toBeGreaterThan(0)
     expect(x.themes.map((t) => t.id)).toContain('travel')
-    expect(x.meta.totalObserved).toBe(300)
-    expect(x.themes.find((t) => t.id === 'food')!.cats[0].surplus).toBeGreaterThan(0)
+    expect(x.themes.find((t) => t.id === 'food')!.cats[0].plan).toBe(900)
+    expect(x.meta.totalPlanOver).toBeGreaterThan(0)
   })
 })
 
@@ -32,7 +32,7 @@ describe('toCSV', () => {
     expect(csv).toContain('$110k – $150k')
     expect(csv).toContain('Housing')
     expect(csv).toContain('shelter')
-    expect(csv).toContain('Observed % of cap')
+    expect(csv).toContain('Plan $')
   })
 
   it('leaves no undefined in the output', () => {
@@ -44,8 +44,8 @@ describe('toJSON', () => {
   it('round-trips the key numbers', () => {
     const json = JSON.parse(toJSON(sample()))
     expect(json.meta.takeHome).toBe(6800)
-    expect(json.meta.ok).toBe(true)
-    expect(json.meta.totalReallocatable).toBeGreaterThan(0)
+    expect(json.meta.ok).toBe(false)
+    expect(json.meta.totalPlanOver).toBeGreaterThan(0)
     expect((json.themes as { id: string }[]).find((t) => t.id === 'travel')).toBeTruthy()
   })
 

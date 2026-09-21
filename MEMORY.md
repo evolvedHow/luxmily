@@ -11,6 +11,20 @@ an expense tracker.** No backend, no account linking — everything is client-si
 (React 18 + Vite 5 + TS strict + Tailwind + zustand), state in `localStorage`,
 deployed to GitHub Pages.
 
+### ⚠️ THE PRODUCT — non-negotiable
+
+**I am NOT building an expense tracker.** The product is simply **a data-driven
+way to create an optimized budget, with anticipated personal CPI. That's it.**
+- No spending categories, no weights-editor, no scenarios, no forecasts, no
+  per-category expense entry, no tracking of historical spend.
+- **Only what the user tells me to do — do not overengineer.** If an instruction
+  is ambiguous or already-discussed work seems to drift into a tracker, stop and
+  ask before building more.
+- The PII feature that shipped in commit `5e51d0d` (32-series embedded BLS
+  dataset, `src/pi/*`, `usePii.ts`, `src/components/pi/*`) was **rejected as
+  not-what-I-wanted** — it overengineered into tracker territory. Treat it as
+  draft code, not the spec.
+
 - Repo: `https://github.com/evolvedHow/luxmily` (public, `main`)
 - Live: `https://evolvedhow.github.io/luxmily/` (Pages via `.github/workflows/deploy.yml`, `VITE_BASE=/luxmily/`)
 - Dev: `npm run dev` → port 5180. `npm test` (vitest), `npm run build` (`tsc -b && vite build`).

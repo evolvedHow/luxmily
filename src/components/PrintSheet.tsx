@@ -4,8 +4,8 @@ import type { ResolvedBudget, ResolvedCategory } from '../engine/types'
 /**
  * Print-only report. The app shell is hidden with .no-print; this block renders
  * only in the print media so "Print / Save as PDF" produces a clean one-pager.
- * It reports the OPTIMIZER angles: plan vs benchmark, observed vs plan, % of cap,
- * and what is free to reallocate. Nothing here tracks time.
+ * It reports the OPTIMIZER angles: plan vs benchmark, % of cap. Nothing here
+ * tracks time or real spending.
  */
 export function PrintSheet({ r }: { r: ResolvedBudget }) {
   return (
@@ -22,8 +22,6 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
         <Meta label="Monthly income" value={money(r.incomeMonthly)} />
         <Meta label="Take-home (Cap)" value={money(r.cap)} bold />
         <Meta label="Planned" value={money(r.totalPlan)} />
-        <Meta label="Observed spend" value={money(r.totalObserved)} />
-        <Meta label="Free to reallocate" value={r.reallocatable > 0 ? money(r.reallocatable) : '—'} />
         <Meta label="Cohort" value={r.cohortLabel} />
         <Meta label="Status" value={r.ok ? 'Optimized' : 'Over plan'} />
       </div>
@@ -68,12 +66,7 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
           title={`${t.label} · ${pct(t.share, 0)}`}
           note={`bench ${pct(t.benchShare, 0)} · ${t.benchSource}`}
         >
-          <PlanTable rows={t.cats} desc={`Allocated ${money(t.allocation)} · Planned ${money(t.planTotal)} · Observed ${money(t.observedTotal)}`} />
-          {t.reallocatable > 0 && (
-            <div style={{ marginTop: 2, fontSize: 9.5, color: '#1d7a3f', fontWeight: 600 }}>
-              Freed up {money(t.reallocatable)} vs plan in this theme — reallocate it.
-            </div>
-          )}
+          <PlanTable rows={t.cats} desc={`Allocated ${money(t.allocation)} · Planned ${money(t.planTotal)}`} />
         </Section>
       ))}
 
@@ -84,7 +77,7 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
       </div>
 
       <div style={{ fontSize: 8.5, color: '#888', marginTop: 8 }}>
-        Averages from BLS Consumer Expenditure Survey 2024 by income cohort; savings rails from FRED PSAVERT and Vanguard How America Saves; Travel is a Luxmi.ly discretionary guide. "Observed" is what you report you actually spend per month — we never track it. Medians shown only where published. Guide only — your plan sets your envelope.
+        Averages from BLS Consumer Expenditure Survey 2024 by income cohort; savings rails from FRED PSAVERT and Vanguard How America Saves; Travel is a Luxmi.ly discretionary guide. Averages steer the starting plan — your plan sets your envelope. Medians shown only where published.
       </div>
     </div>
   )
@@ -104,9 +97,7 @@ function PlanTable({ rows, desc }: { rows: ResolvedCategory[]; desc?: string }) 
             <th style={th}>Bench avg</th>
             <th style={th}>Bench median</th>
             <th style={th}>Plan</th>
-            <th style={th}>Observed</th>
-            <th style={th}>Observed % of cap</th>
-            <th style={th}>vs plan</th>
+            <th style={th}>Plan % of cap</th>
           </tr>
         </thead>
         <tbody>
@@ -116,11 +107,7 @@ function PlanTable({ rows, desc }: { rows: ResolvedCategory[]; desc?: string }) 
               <td style={td}>{money(c.benchAvg)}/mo</td>
               <td style={td}>{c.benchMedian !== undefined ? `${money(c.benchMedian)}/mo` : '—'}</td>
               <td style={td}>{money(c.plan)}</td>
-              <td style={td}>{money(c.observed)}</td>
-              <td style={td}>{pct(c.observedPct, 1)}</td>
-              <td style={{ ...td, color: c.delta > 0 ? C.red : c.delta < 0 ? '#1d7a3f' : '#111' }}>
-                {c.delta > 0 ? `+${money(c.delta)}` : c.delta < 0 ? `−${money(-c.delta)}` : '—'}
-              </td>
+              <td style={td}>—</td>
             </tr>
           ))}
         </tbody>

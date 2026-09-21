@@ -5,10 +5,10 @@ import { Card, Pill, Row } from './ui'
 import type { ResolvedBudget } from '../engine/types'
 
 /**
- * The one hard number. The plan sits against the cap; the Observed line says what
- * you have discovered over time; the gap back is what you can reallocate — this
- * app optimizes, it does not track. The income line carries your cohort's
- * percentile standing, and the ZIP line shows where the localized averages point.
+ * The one hard number. The plan sits against the cap; the gap back is the
+ * buffer. This app optimizes, it does not track. The income line carries your
+ * cohort's percentile standing, and the ZIP line shows where the localized
+ * averages point.
  */
 export function CapCard({ r }: { r: ResolvedBudget }) {
   const editIncome = useBudget((s) => s.editIncome)
@@ -50,16 +50,6 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
 
       <div className="mt-3.5 space-y-1.5">
         <Row label="Planned this month" value={money(r.totalPlan)} strong color={r.totalPlanOver > 0 ? C.red : C.text} />
-        <Row
-          label="Your observed spend"
-          value={money(r.totalObserved)}
-          color={r.observedOverPlan > 0 ? C.red : C.muted}
-        />
-        <Row
-          label="Free to reallocate"
-          value={r.reallocatable > 0 ? money(r.reallocatable) : '— '}
-          color={r.reallocatable > 0 ? C.green : C.muted}
-        />
         <Row label="Cap buffer" value={money(r.buffer)} color={r.buffer < 0 ? C.red : C.green} />
       </div>
 
@@ -69,8 +59,7 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
 
       <div className="flex items-center justify-between mt-3">
         <span className="text-[10.5px] leading-snug max-w-[70%]" style={{ color: C.muted }}>
-          Enter what you actually spend per line in the Observed view — Luxmi.ly then shows what that means
-          as a % of the cap and what it is worth elsewhere.
+          Plans are seeded from your income cohort's averages — your envelope sets the final numbers.
         </span>
         <button
           onClick={editIncome}

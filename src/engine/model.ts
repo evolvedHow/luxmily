@@ -16,8 +16,6 @@ export interface Scaffold {
   plan: Record<string, number>
   /** Category lock, keyed `${theme}.${cat}`. */
   catLock: Record<string, LockMode>
-  /** Observed spend stays empty until the user checks a line. */
-  observed: Record<string, number>
 }
 
 /**
@@ -71,7 +69,6 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string, l
   const share: Record<string, number> = {}
   const plan: Record<string, number> = {}
   const catLock: Record<string, LockMode> = {}
-  const observed: Record<string, number> = {}
 
   for (const t of THEMES) {
     const targetShare = themeShare(cohortId, t.id)
@@ -82,7 +79,6 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string, l
     for (const c of t.cats) {
       const key = catKey(t.id, c.id)
       catLock[key] = c.lock
-      observed[key] = 0
       if (c.flex) {
         plan[key] = 0
         continue
@@ -113,7 +109,7 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string, l
     }
   }
 
-  return { share, plan, catLock, observed }
+  return { share, plan, catLock }
 }
 
 export interface BudgetInput {
@@ -122,7 +118,6 @@ export interface BudgetInput {
   cohortId: string
   share: Record<string, number>
   plan: Record<string, number>
-  observed: Record<string, number>
   catLock: Record<string, LockMode>
 }
 
@@ -147,7 +142,6 @@ export function buildBudget(input: BudgetInput, loc?: BudgetLocation): Budget {
         id: c.id,
         label: c.label,
         plan,
-        observed: input.observed[key] ?? 0,
         lock: input.catLock[key] ?? c.lock,
         payFirst: !!c.payFirst,
         flex: !!c.flex,

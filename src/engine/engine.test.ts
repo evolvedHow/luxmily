@@ -128,34 +128,16 @@ describe('resolve — cap, themes, categories', () => {
     expect(rr.ok).toBe(false)
   })
 
-  it('explains what an observed spend means: % of cap, delta, and what it frees up', () => {
+  it('flags a plan overrun without ever rewriting the plan', () => {
     const b = built()
     const food = b.themes.find((t) => t.id === 'food')!
-    const groceries = food.cats[0]
-    groceries.observed = 300 // discovered spend, below the ~$448 plan
-    const rr = resolve(b)
-    const rg = rr.themes.find((t) => t.id === 'food')!.cats[0]
-
-    expect(rr.totalObserved).toBe(300)
-    expect(rg.observedPct).toBeCloseTo(300 / 6800, 5) // "what 6K means as a % of the cap"
-    expect(rg.delta).toBeCloseTo(300 - 448, 0)
-    expect(rg.surplus).toBeCloseTo(448 - 300, 0)
-    expect(rr.themes.find((t) => t.id === 'food')!.reallocatable).toBeCloseTo(148, 0)
-    expect(rr.reallocatable).toBeCloseTo(148, 0)
-  })
-
-  it('flags spending above plan without ever rewriting the plan', () => {
-    const b = built()
-    const food = b.themes.find((t) => t.id === 'food')!
-    food.cats[0].plan = 100
-    food.cats[0].observed = 400
+    food.cats[0].plan = 5000
     const rr = resolve(b)
     const rf = rr.themes.find((t) => t.id === 'food')!
 
-    expect(rr.observedOverPlan).toBeCloseTo(300, 0)
-    expect(rf.observedOverPlan).toBeCloseTo(300, 0)
-    expect(rf.cats[0].plan).toBe(100) // untouched — we only advise
-    expect(rf.cats[0].observedPct).toBeCloseTo(400 / 6800, 5)
+    expect(rr.totalPlanOver).toBeGreaterThan(0)
+    expect(rf.planOver).toBeGreaterThan(0)
+    expect(rf.cats[0].plan).toBe(5000) // untouched — we only advise
   })
 
   it('marks median as absent where BLS publishes only a mean', () => {
