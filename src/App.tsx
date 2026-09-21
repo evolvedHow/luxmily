@@ -6,11 +6,11 @@ import { CapCard } from './components/CapCard'
 import { ExportMenu } from './components/ExportMenu'
 import { Onboarding } from './components/Onboarding'
 import { PayFirstStrip } from './components/PayFirstStrip'
+import { PiiCard } from './components/PiiCard'
 import { PrintSheet } from './components/PrintSheet'
 import { ThemeCard } from './components/ThemeCard'
-import { ViewpointToggle } from './components/ViewpointToggle'
 import { C } from './theme/tokens'
-import { useBudget, useResolved } from './store/useBudget'
+import { useBaselineResolved, useBudget, useResolved } from './store/useBudget'
 import { fetchBalance, isConfigured, type Balance } from './advisor/worker'
 
 export default function App() {
@@ -21,7 +21,7 @@ export default function App() {
 
 function Dashboard() {
   const r = useResolved()
-  const view = useBudget((s) => s.view)
+  const baseline = useBaselineResolved()
   const reset = useBudget((s) => s.reset)
   const [advisorOpen, setAdvisorOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
@@ -66,15 +66,15 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Viewpoints */}
+        {/* pII — what this allocation's own inflation rate is */}
         <div className="mt-3">
-          <ViewpointToggle />
+          <PiiCard r={r} baseline={baseline} />
         </div>
 
         {/* Themes */}
         <div className="mt-3 md:grid md:grid-cols-2 md:gap-3 space-y-3 md:space-y-0">
           {r.themes.map((t) => (
-            <ThemeCard key={t.id} t={t} view={view} />
+            <ThemeCard key={t.id} t={t} cap={r.cap} />
           ))}
         </div>
       </div>

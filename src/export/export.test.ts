@@ -3,11 +3,21 @@ import { buildBudget, scaffold } from '../engine/model'
 import { resolve } from '../engine/resolve'
 import { toCSV, toExport, toJSON } from './export'
 
+/** Groceries pushed well past its seeding — the budget ends up over cap. */
 function sample() {
   const sc = scaffold(6800, 10000, 'c4')
-  const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc })
+  const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc, locked: {} })
   const food = b.themes.find((t) => t.id === 'food')!
   food.cats[0].plan = 900
+  food.cats[0].locked = true
+  return resolve(b)
+}
+
+/** Groceries trimmed — money is freed into the unallocated bucket. */
+function trimmed() {
+  const sc = scaffold(6800, 10000, 'c4')
+  const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc, locked: {} })
+  b.themes.find((t) => t.id === 'food')!.cats[0].plan = 50
   return resolve(b)
 }
 
@@ -21,7 +31,21 @@ describe('toExport', () => {
     expect(x.payYourselfFirst.length).toBeGreaterThan(0)
     expect(x.themes.map((t) => t.id)).toContain('travel')
     expect(x.themes.find((t) => t.id === 'food')!.cats[0].plan).toBe(900)
-    expect(x.meta.totalPlanOver).toBeGreaterThan(0)
+    expect(x.meta.unallocated).toBeLessThan(0)
+    expect(x.meta.ok).toBe(false)
+  })
+
+  it('carries locks through to the export', () => {
+    const x = toExport(sample())
+    const food = x.themes.find((t) => t.id === 'food')!
+    expect(food.cats[0].locked).toBe(true)
+    expect(food.lockedTotal).toBe(900)
+  })
+
+  it('reports freed money as a positive unallocated bucket', () => {
+    const x = toExport(trimmed())
+    expect(x.meta.unallocated).toBeGreaterThan(0)
+    expect(x.meta.ok).toBe(true)
   })
 })
 
@@ -45,7 +69,7 @@ describe('toJSON', () => {
     const json = JSON.parse(toJSON(sample()))
     expect(json.meta.takeHome).toBe(6800)
     expect(json.meta.ok).toBe(false)
-    expect(json.meta.totalPlanOver).toBeGreaterThan(0)
+    expect(json.meta.unallocated).toBeLessThan(0)
     expect((json.themes as { id: string }[]).find((t) => t.id === 'travel')).toBeTruthy()
   })
 

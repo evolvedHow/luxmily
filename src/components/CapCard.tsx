@@ -5,13 +5,16 @@ import { Card, Pill, Row } from './ui'
 import type { ResolvedBudget } from '../engine/types'
 
 /**
- * The one hard number. The plan sits against the cap; the gap back is the
- * buffer. This app optimizes, it does not track. The income line carries your
- * cohort's percentile standing, and the ZIP line shows where the localized
- * averages point.
+ * The one hard number, and the holding bucket under it.
+ *
+ * Trimming a category does not shrink your money — it frees it. That freed
+ * cash lands in "Available to allocate" and waits there until you spend it on
+ * another line or sweep it into the emergency buffer. Only overshooting the
+ * cap is red, because only that is actually a problem.
  */
 export function CapCard({ r }: { r: ResolvedBudget }) {
   const editIncome = useBudget((s) => s.editIncome)
+  const sweepToEmergency = useBudget((s) => s.sweepToEmergency)
   const standing = COHORT_STANDING[r.cohortId]
 
   const planShare = r.cap > 0 ? Math.min(1, r.totalPlan / r.cap) : 0
@@ -19,6 +22,10 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
   const areaPct =
     loc && loc.medianIncome > 0 ? Math.round((r.incomeMonthly * 12 * 100) / loc.medianIncome) : 0
   const k = (n: number) => (n >= 1000 ? `$${Math.round(n / 1000)}k` : money(n))
+
+  const over = r.unallocated < 0
+  const spare = r.unallocated > 0
+  const bucketColor = over ? C.red : spare ? C.green : C.muted
 
   return (
     <Card accent={r.ok ? C.green : C.red}>
@@ -45,16 +52,54 @@ export function CapCard({ r }: { r: ResolvedBudget }) {
             </div>
           )}
         </div>
-        <Pill tone={r.ok ? 'green' : 'red'}>{r.ok ? 'optimized' : 'over plan'}</Pill>
+        <Pill tone={r.ok ? 'green' : 'red'}>{r.ok ? 'within cap' : 'over cap'}</Pill>
       </div>
 
       <div className="mt-3.5 space-y-1.5">
-        <Row label="Planned this month" value={money(r.totalPlan)} strong color={r.totalPlanOver > 0 ? C.red : C.text} />
-        <Row label="Cap buffer" value={money(r.buffer)} color={r.buffer < 0 ? C.red : C.green} />
+        <Row label="Allocated to themes" value={money(r.totalPlan)} strong />
+      </div>
+
+      {/* The holding bucket — the point of the whole reallocation loop. */}
+      <div
+        className="mt-2.5 rounded-2xl border px-3 py-2.5"
+        style={{ borderColor: `${bucketColor}55`, background: `${bucketColor}12` }}
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: bucketColor }}>
+              {over ? 'Over the cap' : 'Available to allocate'}
+            </div>
+            <div
+              className="tnum text-[22px] font-semibold leading-none mt-0.5"
+              style={{ color: bucketColor }}
+              role="status"
+              aria-label="Unallocated"
+            >
+              {money(Math.abs(r.unallocated))}
+            </div>
+          </div>
+          {spare && (
+            <button
+              onClick={sweepToEmergency}
+              aria-label="Sweep available cash to emergency buffer"
+              className="text-[11px] rounded-xl border px-2.5 py-1.5 shrink-0 transition-opacity hover:opacity-80"
+              style={{ borderColor: C.green, color: C.green }}
+            >
+              → Emergency buffer
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] mt-1.5 leading-snug" style={{ color: C.muted }}>
+          {over
+            ? 'Your plan asks for more than you take home. Trim a category or unlock one and pull it back.'
+            : spare
+              ? 'Take-home your cohort benchmarks do not spend, plus anything you have trimmed. Raise a category, or bank it.'
+              : 'Every dollar of take-home is assigned.'}
+        </p>
       </div>
 
       <div className="mt-3 space-y-1.5">
-        <Bar label="Plan vs cap" share={planShare} color={r.totalPlanOver > 0 ? C.red : C.cap} />
+        <Bar label="Plan vs cap" share={planShare} color={over ? C.red : C.cap} />
       </div>
 
       <div className="flex items-center justify-between mt-3">

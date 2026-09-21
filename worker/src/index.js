@@ -11,17 +11,53 @@
  *   - /api/balance  GET  → return the Durable Object ledger (budget − accumulated spend).
  */
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Range, Accept',
-  'Access-Control-Expose-Headers': 'X-Luxmi-Cost, X-Luxmi-Balance',
+/**
+ * SECURITY NOTE — this endpoint is unauthenticated by design (a static GitHub
+ * Pages frontend has nowhere to hide a credential), so anyone who learns the
+ * worker URL can spend the operator's Workers AI allowance. The mitigations
+ * here are defence-in-depth, not authentication:
+ *   - ALLOWED_ORIGINS  comma-separated origin allowlist (default `*`, which
+ *                      preserves the original behaviour — set it in production)
+ *   - a hard budget stop, so a runaway caller cannot exceed CFAI_BUDGET_USD
+ *   - server-pinned model + clamped max_tokens, so a caller cannot select an
+ *     expensive model or ask for an unbounded completion
+ * For real protection put Cloudflare Access / WAF rate-limiting in front.
+ */
+
+/** Upper bound on a single completion, whatever the client asks for. */
+const MAX_TOKENS_CEILING = 4096
+
+function corsHeaders(request, env) {
+  const allowed = (env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean)
+  const origin = request?.headers?.get('Origin') || ''
+  const allowOrigin = allowed.includes('*')
+    ? '*'
+    : allowed.includes(origin)
+      ? origin
+      : allowed[0] || ''
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Vary': 'Origin',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Range, Accept',
+    'Access-Control-Expose-Headers': 'X-Luxmi-Cost, X-Luxmi-Balance',
+  }
 }
 
-function json(data, status = 200) {
+/** True when the request's Origin is not permitted by ALLOWED_ORIGINS. */
+function originBlocked(request, env) {
+  const allowed = (env.ALLOWED_ORIGINS || '*').split(',').map((s) => s.trim()).filter(Boolean)
+  if (allowed.includes('*')) return false
+  const origin = request.headers.get('Origin')
+  // No Origin header = a non-browser client (curl). Browsers always send one
+  // on cross-origin POSTs, so this only blocks the case we can actually judge.
+  return !!origin && !allowed.includes(origin)
+}
+
+function json(data, status = 200, cors = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json', ...cors },
   })
 }
 
@@ -30,30 +66,35 @@ function json(data, status = 200) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url)
+    const cors = corsHeaders(request, env)
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS_HEADERS })
+      return new Response(null, { status: 204, headers: cors })
+    }
+
+    if (originBlocked(request, env)) {
+      return json({ error: 'origin not allowed' }, 403, cors)
     }
 
     if (url.pathname === '/api/advise' && request.method === 'POST') {
-      return handleAdvise(request, env)
+      return handleAdvise(request, env, cors)
     }
 
     if (url.pathname === '/api/balance' && request.method === 'GET') {
-      return handleBalance(env)
+      return handleBalance(env, cors)
     }
 
-    return json({ error: 'not found' }, 404)
+    return json({ error: 'not found' }, 404, cors)
   },
 }
 
 // ── /api/advise ────────────────────────────────────────────────────
 
-async function handleAdvise(request, env) {
+async function handleAdvise(request, env, cors) {
   const accountId = env.CF_ACCOUNT_ID
   const apiToken = env.CF_AI_API_TOKEN
   if (!accountId || !apiToken) {
-    return json({ error: 'Workers AI not configured.' }, 503)
+    return json({ error: 'Workers AI not configured.' }, 503, cors)
   }
 
   // ── Parse & re-shape the client body ──────────────────────────────
@@ -61,7 +102,7 @@ async function handleAdvise(request, env) {
   try {
     body = await request.json()
   } catch {
-    return json({ error: 'Invalid JSON body.' }, 400)
+    return json({ error: 'Invalid JSON body.' }, 400, cors)
   }
 
   // Fallback estimate of prompt tokens (chars/4) used only if Workers AI
@@ -69,11 +110,33 @@ async function handleAdvise(request, env) {
   // these figures with "≈".
   const promptChars = JSON.stringify(body.messages || []).length
 
-  // Force streaming + usage tracking. Inject model from env so the
-  // client never needs to know it.
+  // ── Hard budget stop ──────────────────────────────────────────────
+  // The ledger was display-only: it reported overspend but never prevented
+  // it. Refuse once the budget is exhausted so an unauthenticated caller
+  // cannot run the bill past CFAI_BUDGET_USD.
+  const budgetUsd = parseFloat(env.CFAI_BUDGET_USD || '25')
+  try {
+    const id = env.BALANCE.idFromName('luxmi-budget')
+    const stub = env.BALANCE.get(id)
+    const ledger = await (await stub.fetch(new Request('http://do/get'))).json()
+    if (typeof ledger?.spentUsd === 'number' && ledger.spentUsd >= budgetUsd) {
+      return json({ error: 'AI budget exhausted for this deployment.' }, 429, cors)
+    }
+  } catch {
+    // Ledger unavailable (local dev without --local) — fail open, as before.
+  }
+
+  // Force streaming + usage tracking. The model is pinned server-side and the
+  // completion length is capped, so a hand-rolled request body cannot select a
+  // pricier model or ask for an unbounded (and unbounded-cost) completion.
   body.stream = true
   body.stream_options = { include_usage: true }
-  if (env.CFAI_MODEL) body.model = env.CFAI_MODEL
+  body.model = env.CFAI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
+  body.n = 1
+  const askedTokens = Number(body.max_tokens)
+  body.max_tokens = Number.isFinite(askedTokens) && askedTokens > 0
+    ? Math.min(askedTokens, MAX_TOKENS_CEILING)
+    : 1600
 
   // ── Forward to Cloudflare Workers AI (OpenAI-compatible endpoint) ──
   const url =
@@ -93,7 +156,7 @@ async function handleAdvise(request, env) {
     const text = await res.text()
     return new Response(text, {
       status: res.status,
-      headers: { 'Content-Type': 'text/plain', ...CORS_HEADERS },
+      headers: { 'Content-Type': 'text/plain', ...cors },
     })
   }
 
@@ -132,10 +195,13 @@ async function handleAdvise(request, env) {
       const { done, value } = await reader.read()
       if (done) {
         // ── Flush remaining buffer ─────────────────────────────────
+        // NOTE: do NOT re-enqueue `buffer` here. Every byte was already
+        // forwarded verbatim by `controller.enqueue(value)` below; `buffer` is
+        // only a parsing mirror. Re-emitting it duplicated the stream's final
+        // partial line (and appended a stray newline) whenever the upstream
+        // response did not end on a newline. Scan it, don't resend it.
         if (buffer) {
-          const lines = buffer.split('\n')
-          for (const line of lines) {
-            controller.enqueue(new TextEncoder().encode(line + '\n'))
+          for (const line of buffer.split('\n')) {
             const trimmed = line.trim()
             if (trimmed.startsWith('data:')) {
               const payload = trimmed.slice(5).trim()
@@ -182,7 +248,6 @@ async function handleAdvise(request, env) {
             body: JSON.stringify({ costUsd }),
           }))
           const ledger = await ledgerRes.json()
-          const budgetUsd = parseFloat(env.CFAI_BUDGET_USD || '25')
           const spentUsd = typeof ledger?.spentUsd === 'number' ? ledger.spentUsd : 0
           balanceUsd = Math.max(0, budgetUsd - spentUsd)
         } catch {
@@ -228,13 +293,13 @@ async function handleAdvise(request, env) {
 
   return new Response(stream, {
     status: 200,
-    headers: { 'Content-Type': 'text/event-stream', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'text/event-stream', ...cors },
   })
 }
 
 // ── /api/balance ───────────────────────────────────────────────────
 
-async function handleBalance(env) {
+async function handleBalance(env, cors) {
   const budgetUsd = parseFloat(env.CFAI_BUDGET_USD || '25')
 
   try {
@@ -242,12 +307,15 @@ async function handleBalance(env) {
     const stub = env.BALANCE.get(id)
     const res = await stub.fetch(new Request('http://do/get'))
     const ledger = await res.json()
+    const spentUsd = typeof ledger?.spentUsd === 'number' ? ledger.spentUsd : 0
     return json({
       budgetUsd,
-      spentUsd: ledger.spentUsd,
-      balanceUsd: budgetUsd - ledger.spentUsd,
+      spentUsd,
+      // Clamped at 0 to match the per-request usage trailer, which already
+      // used Math.max(0, …). The two disagreed once the budget was exhausted.
+      balanceUsd: Math.max(0, budgetUsd - spentUsd),
       currency: 'usd',
-    })
+    }, 200, cors)
   } catch {
     // Durable Object unavailable (local dev without --local)
     return json({
@@ -256,7 +324,7 @@ async function handleBalance(env) {
       balanceUsd: budgetUsd,
       currency: 'usd',
       note: 'ledger unavailable (Durable Object not connected)',
-    })
+    }, 200, cors)
   }
 }
 

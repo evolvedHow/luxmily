@@ -8,8 +8,7 @@ import { cohortById } from '../data/benchmarks'
 
 function sample() {
   const sc = scaffold(6800, 10000, 'c4')
-  const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc })
-  b.themes.find((t) => t.id === 'food')!.cats[0].observed = 300
+  const b = buildBudget({ incomeMonthly: 10000, takeHome: 6800, cohortId: 'c4', ...sc, locked: {} })
   return resolve(b)
 }
 
@@ -59,20 +58,23 @@ describe('luxmi prompt', () => {
     const end = prompt.indexOf('```', start + 7)
     const json = JSON.parse(prompt.slice(start + 7, end)) as {
       meta: Record<string, unknown>
-      payYourselfFirst: { observed: number }[]
+      payYourselfFirst: Record<string, unknown>[]
       themes: { cats: Record<string, unknown>[]; sources: { url?: string }[] }[]
     }
-    expect(json.meta.totalObserved).toBe(300)
+    expect(json.meta.totalPlan).toBeGreaterThan(0)
+    expect(json.meta.unallocated).toBeDefined()
+    expect(json.meta.ok).toBeDefined()
     expect(json.payYourselfFirst.length).toBeGreaterThan(0)
 
     const foodCat = json.themes.find((t) => (t.cats[0] as unknown as { id: string }).id === 'groceries')?.cats[0]
     expect(foodCat).toBeTruthy()
     if (foodCat) {
-      expect(foodCat.observed).toBe(300)
-      expect(foodCat.observedPct).toBeGreaterThan(0)
-      expect(foodCat.delta).toBeLessThan(0)
-      expect(foodCat.surplus).toBeGreaterThan(0)
+      expect(foodCat.plan).toBeGreaterThan(0)
       expect(foodCat.benchAvg).toBeGreaterThan(0)
+      expect(foodCat.benchSource).toContain('BLS')
+      // Optimizer only: no actuals ever reach the model.
+      expect(foodCat.observed).toBeUndefined()
+      expect(json.meta.totalObserved).toBeUndefined()
     }
   })
 })

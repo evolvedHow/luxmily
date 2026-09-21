@@ -48,6 +48,7 @@ npx wrangler deploy
 | `CFAI_BUDGET_USD` | `25` | Budget cap in USD (shown as balance in the UI) |
 | `CFAI_IN_PRICE` | `0.051` | Per-1M input-token price in USD |
 | `CFAI_OUT_PRICE` | `0.335` | Per-1M output-token price in USD |
+| `ALLOWED_ORIGINS` | `*` | Comma-separated origin allowlist, e.g. `https://evolvedhow.github.io`. **Set this in production** |
 
 Reasonable chat models on Workers AI (2026, price in $ per 1M in/out tokens):
 
@@ -109,6 +110,11 @@ npx wrangler dev       # → http://localhost:8787 (use --local for the Durable 
    Workers AI doesn't echo `usage` in the stream, the worker falls back to a
    rough chars/4 token estimate and sets `"estimated": true`.
 
+   Before forwarding, the worker **pins `model` from env**, forces `n: 1`, and
+   clamps `max_tokens` to 4096 — a hand-rolled request body cannot select a
+   pricier model or ask for an unbounded completion. If the ledger has already
+   reached `CFAI_BUDGET_USD`, the request is refused with **429** instead.
+
 2. **`GET /api/balance`** — Returns the Durable Object ledger:
 
    ```json
@@ -119,7 +125,21 @@ npx wrangler dev       # → http://localhost:8787 (use --local for the Durable 
    `"luxmi-budget"` that persists `spentUsd` across requests. The `/incr`
    endpoint adds a cost; `/get` reads the ledger.
 
-## CORS
+## CORS & abuse
 
-All responses include `Access-Control-Allow-Origin: *`. The worker serves
-GitHub Pages at `https://evolvedhow.github.io`.
+By default all responses include `Access-Control-Allow-Origin: *`, which serves
+GitHub Pages at `https://evolvedhow.github.io`. Set `ALLOWED_ORIGINS` to narrow
+it; requests carrying a disallowed `Origin` header get **403**.
+
+> **⚠️ This endpoint is unauthenticated.** A static Pages frontend has nowhere
+> to hide a credential, so anyone who learns the worker URL can spend your
+> Workers AI allowance. The worker mitigates — origin allowlist, hard budget
+> stop at `CFAI_BUDGET_USD`, server-pinned model, clamped `max_tokens` — but
+> none of that is authentication. An `Origin` header is trivially forged by a
+> non-browser client. For real protection put **Cloudflare Access** or **WAF
+> rate-limiting** in front of the worker, or move to a signed-token scheme.
+
+### Resetting the ledger
+
+The budget stop reads the Durable Object, so once `spentUsd` reaches the budget
+every request 429s. Raise `CFAI_BUDGET_USD` and redeploy, or delete the DO.

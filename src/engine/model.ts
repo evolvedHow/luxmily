@@ -5,17 +5,19 @@ import {
   themeShare,
   type CatDef,
 } from '../data/benchmarks'
-import type { Budget, BudgetCategory, BudgetLocation, BudgetTheme, LockMode } from './types'
+import type { Budget, BudgetCategory, BudgetLocation, BudgetTheme } from './types'
 
 export const catKey = (themeId: string, catId: string) => `${themeId}.${catId}`
 
+/**
+ * The pristine, benchmark-derived starting point. Because `scaffold` is a pure
+ * function of (cap, income, cohort, location), this can be recomputed at any
+ * time — which is what both the per-theme Reset button and the pII baseline
+ * rely on. Nothing needs to be frozen at onboarding.
+ */
 export interface Scaffold {
-  /** Theme target shares, keyed by theme id. */
-  share: Record<string, number>
   /** Category plan $, keyed `${theme}.${cat}`. */
   plan: Record<string, number>
-  /** Category lock, keyed `${theme}.${cat}`. */
-  catLock: Record<string, LockMode>
 }
 
 /**
@@ -66,19 +68,14 @@ function fitToTarget(plans: { id: string; plan: number }[], target: number): num
 export function scaffold(cap: number, incomeMonthly: number, cohortId: string, loc?: BudgetLocation): Scaffold {
   const cohort = cohortById(cohortId)
   const scale = cohortScale(cohort)
-  const share: Record<string, number> = {}
   const plan: Record<string, number> = {}
-  const catLock: Record<string, LockMode> = {}
 
   for (const t of THEMES) {
-    const targetShare = themeShare(cohortId, t.id)
-    share[t.id] = targetShare
-    const allocation = cap * targetShare
+    const allocation = cap * themeShare(cohortId, t.id)
     const rows = [] as { id: string; key: string; plan: number }[]
 
     for (const c of t.cats) {
       const key = catKey(t.id, c.id)
-      catLock[key] = c.lock
       if (c.flex) {
         plan[key] = 0
         continue
@@ -109,16 +106,16 @@ export function scaffold(cap: number, incomeMonthly: number, cohortId: string, l
     }
   }
 
-  return { share, plan, catLock }
+  return { plan }
 }
 
 export interface BudgetInput {
   incomeMonthly: number
   takeHome: number
   cohortId: string
-  share: Record<string, number>
   plan: Record<string, number>
-  catLock: Record<string, LockMode>
+  /** Locks keyed by theme id AND by `${theme}.${cat}`. Absent = unlocked. */
+  locked: Record<string, boolean>
 }
 
 export function buildBudget(input: BudgetInput, loc?: BudgetLocation): Budget {
@@ -130,7 +127,7 @@ export function buildBudget(input: BudgetInput, loc?: BudgetLocation): Budget {
   const themes: BudgetTheme[] = THEMES.map((t) => ({
     id: t.id,
     label: t.label,
-    share: input.share[t.id] ?? themeShare(cohort.id, t.id),
+    locked: !!input.locked[t.id],
     payFirst: !!t.payFirst,
     benchShare: themeShare(cohort.id, t.id),
     benchSource: t.bench.source,
@@ -142,7 +139,7 @@ export function buildBudget(input: BudgetInput, loc?: BudgetLocation): Budget {
         id: c.id,
         label: c.label,
         plan,
-        lock: input.catLock[key] ?? c.lock,
+        locked: !!input.locked[key],
         payFirst: !!c.payFirst,
         flex: !!c.flex,
         // Percent-of-income rails stay as fractions; dollar benchmarks are the

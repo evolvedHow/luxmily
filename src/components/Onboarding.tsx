@@ -63,7 +63,7 @@ export function Onboarding() {
             Cohort: <span style={{ color: C.cap }}>{cohort.label}</span> — {cohort.source}
           </p>
         )}
-        {income > 0 && (
+        {income > 0 && COHORT_STANDING[cohort.id] && (
           <p className="text-[11px]" style={{ color: C.cap }}>
             {COHORT_STANDING[cohort.id].label} by US household income
           </p>

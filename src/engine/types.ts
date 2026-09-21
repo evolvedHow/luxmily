@@ -3,9 +3,12 @@
  * status math stays testable in isolation.
  */
 
-export type LockMode = 'hard' | 'floor' | 'ceiling' | 'elastic'
-
-export type Viewpoint = 'top-down' | 'planned'
+/**
+ * There is one viewpoint now. The old 'top-down' / 'planned' split existed
+ * because theme shares and category dollars were independent models of the
+ * same money; they are one model now (dollars up, share derived), so the
+ * toggle had nothing left to toggle. Locks do the job it was reaching for.
+ */
 
 /** Where a budget is localized (user ZIP → area). `cola` / `rentFactor` are
  *  multipliers against US average (1.00 = national). Grounded in public BEA RPP
@@ -38,7 +41,8 @@ export interface BudgetCategory extends Bench {
   label: string
   /** Dollars/month the user commits to this line. */
   plan: number
-  lock: LockMode
+  /** Pinned by the user — never moves when its theme is resized. */
+  locked: boolean
   /** Pay-yourself-first field (401k / Roth / savings), shown on the strip. */
   payFirst: boolean
   /** Slack absorber inside its theme (e.g. investments envelope). */
@@ -48,8 +52,8 @@ export interface BudgetCategory extends Bench {
 export interface BudgetTheme {
   id: string
   label: string
-  /** User's target share of the Cap, 0..1. */
-  share: number
+  /** Pinned by the user — its total never moves. */
+  locked: boolean
   payFirst: boolean
   /** Cohort benchmark share of spend. */
   benchShare: number
@@ -75,7 +79,7 @@ export interface ResolvedCategory {
   /** Owning theme id — used to address the store. */
   themeId: string
   label: string
-  lock: LockMode
+  locked: boolean
   plan: number
   benchAvg: number
   benchMedian?: number
@@ -90,15 +94,17 @@ export interface ResolvedTheme {
   id: string
   label: string
   payFirst: boolean
-  /** The user's setting, what the slider shows. */
-  targetShare: number
-  /** After the solver ensured shares sum to 1. */
+  locked: boolean
+  /**
+   * Derived, not set: this theme's planned dollars over the Cap. Shares no
+   * longer sum to 1 — whatever is left over sits in `unallocated`.
+   */
   share: number
-  /** share × Cap. */
-  allocation: number
   planTotal: number
-  /** Dollars by which plans exceed the theme allocation. */
-  planOver: number
+  /** Sum of the locked category plans inside this theme (its hard floor). */
+  lockedTotal: number
+  /** True when every category here is locked, so the theme cannot be resized. */
+  fullyLocked: boolean
   benchShare: number
   benchSource: string
   /** Distinct sources backing this theme's rows, each with its link. */
@@ -119,9 +125,12 @@ export interface ResolvedBudget {
   /** Flattened pay-yourself-first fields for the mandatory strip. */
   payFirst: ResolvedCategory[]
   totalPlan: number
-  totalPlanOver: number
-  /** Cap − totalPlan; negative means the plan overruns the Cap. */
-  buffer: number
-  /** True when the whole budget is green: plans fit every theme's allocation. */
+  /**
+   * The holding bucket: Cap − totalPlan. Money freed by trimming a category
+   * waits here until it is allocated somewhere else or swept into the
+   * emergency buffer. Negative means the plan overruns the Cap.
+   */
+  unallocated: number
+  /** True when the plan fits inside the Cap. */
   ok: boolean
 }

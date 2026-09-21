@@ -1,5 +1,3 @@
-import type { LockMode } from '../engine/types'
-
 /**
  * Benchmark reference set. Every number shown to the user as a guide lives here,
  * tied to an income band ("cohort") and tagged with where it came from.
@@ -88,7 +86,6 @@ export interface CatDef {
   id: string
   label: string
   bench: CatBench
-  lock: LockMode
   /** Mirrors back which source ref owns this category. */
   sourceRef: keyof typeof SRC
   /** Pay-yourself-first field: shown on the mandatory savings strip with its rail. */
@@ -128,10 +125,10 @@ export const THEMES: ThemeDef[] = [
     label: 'Housing',
     bench: { source: 'BLS CEX 2024 · largest spend share (~33%)', url: SRC.bls.url },
     cats: [
-      { id: 'shelter', label: 'Rent / Mortgage', lock: 'floor', sourceRef: 'bls', bench: { avg: 1280, source: 'BLS CEX 2024 · shelter (owned + rented dwellings)', url: SRC.bls.url } },
-      { id: 'utilities', label: 'Utilities & Public Services', lock: 'floor', sourceRef: 'bls', bench: { avg: 390, source: 'BLS CEX 2024 · utilities, fuels, public services', url: SRC.bls.url } },
-      { id: 'home_maint', label: 'Maintenance & Furnishings', lock: 'elastic', sourceRef: 'bls', bench: { avg: 190, source: 'BLS CEX 2024 · household operations + furnishings', url: SRC.bls.url } },
-      { id: 'home_insurance', label: 'Home Insurance', lock: 'floor', sourceRef: 'bls', bench: { avg: 120, source: 'BLS CEX 2024 · household insurance', url: SRC.bls.url } },
+      { id: 'shelter', label: 'Rent / Mortgage', sourceRef: 'bls', bench: { avg: 1280, source: 'BLS CEX 2024 · shelter (owned + rented dwellings)', url: SRC.bls.url } },
+      { id: 'utilities', label: 'Utilities & Public Services', sourceRef: 'bls', bench: { avg: 390, source: 'BLS CEX 2024 · utilities, fuels, public services', url: SRC.bls.url } },
+      { id: 'home_maint', label: 'Maintenance & Furnishings', sourceRef: 'bls', bench: { avg: 190, source: 'BLS CEX 2024 · household operations + furnishings', url: SRC.bls.url } },
+      { id: 'home_insurance', label: 'Home Insurance', sourceRef: 'bls', bench: { avg: 120, source: 'BLS CEX 2024 · household insurance', url: SRC.bls.url } },
     ],
   },
   {
@@ -139,8 +136,8 @@ export const THEMES: ThemeDef[] = [
     label: 'Food',
     bench: { source: 'BLS CEX 2024 · ~13% of spend', url: SRC.bls.url },
     cats: [
-      { id: 'groceries', label: 'Groceries (food at home)', lock: 'elastic', sourceRef: 'bls', bench: { avg: 400, medianNote: 'BLS publishes a mean, not a median', source: 'BLS CEX 2024 · food at home', url: SRC.bls.url } },
-      { id: 'dining_out', label: 'Dining Out', lock: 'elastic', sourceRef: 'bls', bench: { avg: 260, source: 'BLS CEX 2024 · food away from home', url: SRC.bls.url } },
+      { id: 'groceries', label: 'Groceries (food at home)', sourceRef: 'bls', bench: { avg: 400, medianNote: 'BLS publishes a mean, not a median', source: 'BLS CEX 2024 · food at home', url: SRC.bls.url } },
+      { id: 'dining_out', label: 'Dining Out', sourceRef: 'bls', bench: { avg: 260, source: 'BLS CEX 2024 · food away from home', url: SRC.bls.url } },
     ],
   },
   {
@@ -148,13 +145,13 @@ export const THEMES: ThemeDef[] = [
     label: 'Transportation',
     bench: { source: 'BLS CEX 2024 · ~17% of spend', url: SRC.bls.url },
     cats: [
-      { id: 'vehicle_payment', label: 'Car Payment / Lease', lock: 'floor', sourceRef: 'bls', bench: { avg: 430, source: 'BLS CEX 2024 · vehicle purchases (net outlay incl. financing)', url: SRC.bls.url } },
-      { id: 'vehicle_insurance', label: 'Car Insurance', lock: 'floor', sourceRef: 'bls', bench: { avg: 165, source: 'BLS CEX 2024 · vehicle insurance', url: SRC.bls.url } },
-      { id: 'gas', label: 'Gasoline', lock: 'elastic', sourceRef: 'bls', bench: { avg: 165, source: 'BLS CEX 2024 · gasoline and motor oil', url: SRC.bls.url } },
-      { id: 'maintenance', label: 'Maintenance & Repairs', lock: 'elastic', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · vehicle maintenance', url: SRC.bls.url } },
-      { id: 'public_transit', label: 'Public Transit', lock: 'elastic', sourceRef: 'bls', bench: { avg: 95, source: 'BLS CEX 2024 · public & other transportation', url: SRC.bls.url } },
-      { id: 'rideshare', label: 'Rideshare (Uber / Lyft)', lock: 'elastic', sourceRef: 'bls', bench: { avg: 60, source: 'LuxMily guide · in-town rideshare (drawn from CEX "other transportation" detail — the car-free city line)', url: SRC.bls.url } },
-      { id: 'parking_tolls', label: 'Parking & Tolls', lock: 'elastic', sourceRef: 'bls', bench: { avg: 40, source: 'BLS CEX 2024 · other vehicle expenses', url: SRC.bls.url } },
+      { id: 'vehicle_payment', label: 'Car Payment / Lease', sourceRef: 'bls', bench: { avg: 430, source: 'BLS CEX 2024 · vehicle purchases (net outlay incl. financing)', url: SRC.bls.url } },
+      { id: 'vehicle_insurance', label: 'Car Insurance', sourceRef: 'bls', bench: { avg: 165, source: 'BLS CEX 2024 · vehicle insurance', url: SRC.bls.url } },
+      { id: 'gas', label: 'Gasoline', sourceRef: 'bls', bench: { avg: 165, source: 'BLS CEX 2024 · gasoline and motor oil', url: SRC.bls.url } },
+      { id: 'maintenance', label: 'Maintenance & Repairs', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · vehicle maintenance', url: SRC.bls.url } },
+      { id: 'public_transit', label: 'Public Transit', sourceRef: 'bls', bench: { avg: 95, source: 'BLS CEX 2024 · public & other transportation', url: SRC.bls.url } },
+      { id: 'rideshare', label: 'Rideshare (Uber / Lyft)', sourceRef: 'bls', bench: { avg: 60, source: 'LuxMily guide · in-town rideshare (drawn from CEX "other transportation" detail — the car-free city line)', url: SRC.bls.url } },
+      { id: 'parking_tolls', label: 'Parking & Tolls', sourceRef: 'bls', bench: { avg: 40, source: 'BLS CEX 2024 · other vehicle expenses', url: SRC.bls.url } },
     ],
   },
   {
@@ -162,10 +159,10 @@ export const THEMES: ThemeDef[] = [
     label: 'Healthcare',
     bench: { source: 'BLS CEX 2024 · ~8% of spend', url: SRC.bls.url },
     cats: [
-      { id: 'health_insurance', label: 'Insurance Premiums', lock: 'floor', sourceRef: 'bls', bench: { avg: 350, source: 'BLS CEX 2024 · health insurance', url: SRC.bls.url } },
-      { id: 'medical_services', label: 'Medical Services', lock: 'elastic', sourceRef: 'bls', bench: { avg: 150, source: 'BLS CEX 2024 · medical services', url: SRC.bls.url } },
-      { id: 'prescriptions', label: 'Prescriptions', lock: 'elastic', sourceRef: 'bls', bench: { avg: 80, source: 'BLS CEX 2024 · drugs', url: SRC.bls.url } },
-      { id: 'dental_vision', label: 'Dental & Vision', lock: 'elastic', sourceRef: 'bls', bench: { avg: 40, source: 'BLS CEX 2024 · dental + vision care', url: SRC.bls.url } },
+      { id: 'health_insurance', label: 'Insurance Premiums', sourceRef: 'bls', bench: { avg: 350, source: 'BLS CEX 2024 · health insurance', url: SRC.bls.url } },
+      { id: 'medical_services', label: 'Medical Services', sourceRef: 'bls', bench: { avg: 150, source: 'BLS CEX 2024 · medical services', url: SRC.bls.url } },
+      { id: 'prescriptions', label: 'Prescriptions', sourceRef: 'bls', bench: { avg: 80, source: 'BLS CEX 2024 · drugs', url: SRC.bls.url } },
+      { id: 'dental_vision', label: 'Dental & Vision', sourceRef: 'bls', bench: { avg: 40, source: 'BLS CEX 2024 · dental + vision care', url: SRC.bls.url } },
     ],
   },
   {
@@ -174,11 +171,11 @@ export const THEMES: ThemeDef[] = [
     payFirst: true,
     bench: { source: 'Mixed — CEX "personal insurance & pensions" ~12.5% + FRED saving rate + Vanguard rails' },
     cats: [
-      { id: 'k401', label: '401(k) / Roth', payFirst: true, lock: 'floor', sourceRef: 'vanguard', bench: { avg: 0.07, pctOf: 'gross', median: 0.07, source: "Vanguard · typical employee deferral ≈7% (≈11% with employer match); Fidelity guideline 15%", url: SRC.vanguard.url } },
-      { id: 'roth', label: 'Roth IRA', payFirst: true, lock: 'floor', sourceRef: 'vanguard', bench: { avg: 200, median: 167, medianNote: 'Vanguard median IRA contribution ≈ $2,000/yr', source: 'Vanguard · median rollout ~$2,000/yr; 2026 limit $7,000/yr', url: SRC.vanguard.url } },
-      { id: 'emergency', label: 'Emergency / Cash Buffer', payFirst: true, lock: 'floor', sourceRef: 'fred', bench: { avg: 0.05, pctOf: 'takehome', source: 'FRED PSAVERT · U.S. personal saving rate ≈3.8% (2024); long-run ≈8.9%', url: SRC.fred.url } },
-      { id: 'life_insurance', label: 'Life / Other Insurance', lock: 'floor', sourceRef: 'bls', bench: { avg: 48, source: 'BLS CEX 2024 · life and other personal insurance', url: SRC.bls.url } },
-      { id: 'investments', label: 'Investments & Brokerage', flex: true, lock: 'elastic', sourceRef: 'vanguard', bench: { avg: 0, source: 'Slack inside the savings envelope → invest more' } },
+      { id: 'k401', label: '401(k) / Roth', payFirst: true, sourceRef: 'vanguard', bench: { avg: 0.07, pctOf: 'gross', median: 0.07, source: "Vanguard · typical employee deferral ≈7% (≈11% with employer match); Fidelity guideline 15%", url: SRC.vanguard.url } },
+      { id: 'roth', label: 'Roth IRA', payFirst: true, sourceRef: 'vanguard', bench: { avg: 200, median: 167, medianNote: 'Vanguard median IRA contribution ≈ $2,000/yr', source: 'Vanguard · median rollout ~$2,000/yr; 2026 limit $7,000/yr', url: SRC.vanguard.url } },
+      { id: 'emergency', label: 'Emergency / Cash Buffer', payFirst: true, sourceRef: 'fred', bench: { avg: 0.05, pctOf: 'takehome', source: 'FRED PSAVERT · U.S. personal saving rate ≈3.8% (2024); long-run ≈8.9%', url: SRC.fred.url } },
+      { id: 'life_insurance', label: 'Life / Other Insurance', sourceRef: 'bls', bench: { avg: 48, source: 'BLS CEX 2024 · life and other personal insurance', url: SRC.bls.url } },
+      { id: 'investments', label: 'Investments & Brokerage', flex: true, sourceRef: 'vanguard', bench: { avg: 0, source: 'Slack inside the savings envelope → invest more' } },
     ],
   },
   {
@@ -186,9 +183,9 @@ export const THEMES: ThemeDef[] = [
     label: 'Travel',
     bench: { source: 'LuxMily guide · a well-lived life. Not a BLS proportion — carved out of Other, from CEX entertainment detail', url: SRC.bls.url },
     cats: [
-      { id: 'airfare', label: 'Airfare', lock: 'elastic', sourceRef: 'bls', bench: { avg: 85, medianNote: 'Fares vary widely; this is our guide level', source: 'LuxMily guide · air travel allowance (BTS average domestic fare context)', url: 'https://www.bts.gov/travel-patterns-and-trends' } },
-      { id: 'lodging', label: 'Hotels & Short-Term Rentals', lock: 'elastic', sourceRef: 'bls', bench: { avg: 140, medianNote: 'Varies hugely by destination', source: 'LuxMily guide · hotel/short-term rental allowance', url: SRC.bls.url } },
-      { id: 'ground', label: 'Rental Cars & Travel Rideshare', lock: 'elastic', sourceRef: 'bls', bench: { avg: 55, source: 'LuxMily guide · rental cars + travel rideshare', url: SRC.bls.url } },
+      { id: 'airfare', label: 'Airfare', sourceRef: 'bls', bench: { avg: 85, medianNote: 'Fares vary widely; this is our guide level', source: 'LuxMily guide · air travel allowance (BTS average domestic fare context)', url: 'https://www.bts.gov/travel-patterns-and-trends' } },
+      { id: 'lodging', label: 'Hotels & Short-Term Rentals', sourceRef: 'bls', bench: { avg: 140, medianNote: 'Varies hugely by destination', source: 'LuxMily guide · hotel/short-term rental allowance', url: SRC.bls.url } },
+      { id: 'ground', label: 'Rental Cars & Travel Rideshare', sourceRef: 'bls', bench: { avg: 55, source: 'LuxMily guide · rental cars + travel rideshare', url: SRC.bls.url } },
     ],
   },
   {
@@ -196,13 +193,13 @@ export const THEMES: ThemeDef[] = [
     label: 'Other (everything else)',
     bench: { source: 'BLS CEX 2024 · entertainment, apparel, personal care, misc', url: SRC.bls.url },
     cats: [
-      { id: 'entertainment', label: 'Entertainment & Activities', lock: 'elastic', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · entertainment', url: SRC.bls.url } },
-      { id: 'subscriptions', label: 'Digital Subscriptions', lock: 'elastic', sourceRef: 'bls', bench: { avg: 90, medianNote: 'No published median for streaming', source: 'Approx. from CEX entertainment detail', url: SRC.bls.url } },
-      { id: 'mobile', label: 'Mobile & Phone', lock: 'elastic', sourceRef: 'bls', bench: { avg: 95, source: 'BLS CEX 2024 · telephone services', url: SRC.bls.url } },
-      { id: 'internet', label: 'Internet', lock: 'elastic', sourceRef: 'bls', bench: { avg: 65, source: 'Approx. from CEX telecom detail', url: SRC.bls.url } },
-      { id: 'apparel', label: 'Apparel', lock: 'elastic', sourceRef: 'bls', bench: { avg: 160, source: 'BLS CEX 2024 · apparel & services', url: SRC.bls.url } },
-      { id: 'personal_care', label: 'Personal Care', lock: 'elastic', sourceRef: 'bls', bench: { avg: 80, source: 'BLS CEX 2024 · personal care products & services', url: SRC.bls.url } },
-      { id: 'misc', label: 'Miscellaneous', lock: 'elastic', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · miscellaneous expenditures', url: SRC.bls.url } },
+      { id: 'entertainment', label: 'Entertainment & Activities', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · entertainment', url: SRC.bls.url } },
+      { id: 'subscriptions', label: 'Digital Subscriptions', sourceRef: 'bls', bench: { avg: 90, medianNote: 'No published median for streaming', source: 'Approx. from CEX entertainment detail', url: SRC.bls.url } },
+      { id: 'mobile', label: 'Mobile & Phone', sourceRef: 'bls', bench: { avg: 95, source: 'BLS CEX 2024 · telephone services', url: SRC.bls.url } },
+      { id: 'internet', label: 'Internet', sourceRef: 'bls', bench: { avg: 65, source: 'Approx. from CEX telecom detail', url: SRC.bls.url } },
+      { id: 'apparel', label: 'Apparel', sourceRef: 'bls', bench: { avg: 160, source: 'BLS CEX 2024 · apparel & services', url: SRC.bls.url } },
+      { id: 'personal_care', label: 'Personal Care', sourceRef: 'bls', bench: { avg: 80, source: 'BLS CEX 2024 · personal care products & services', url: SRC.bls.url } },
+      { id: 'misc', label: 'Miscellaneous', sourceRef: 'bls', bench: { avg: 100, source: 'BLS CEX 2024 · miscellaneous expenditures', url: SRC.bls.url } },
     ],
   },
 ]

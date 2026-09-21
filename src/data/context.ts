@@ -16,7 +16,9 @@
  */
 
 export interface CohortStanding {
-  /** Approximate share of U.S. households earning more than this cohort's floor. */
+  /** Approximate share of U.S. households earning at or above this cohort's
+   *  floor. For c1 (the bottom band) there is no "top" reading — ~30% of
+   *  households sit inside it, so its label says "lower", not "top". */
   topPct: number
   /** Short human label, e.g. "top ~12%". */
   label: string
@@ -24,7 +26,7 @@ export interface CohortStanding {
 }
 
 export const COHORT_STANDING: Record<string, CohortStanding> = {
-  c1: { topPct: 0.7, label: 'top ~30% of households', note: 'under $40k/yr' },
+  c1: { topPct: 0.7, label: 'lower ~30% of households', note: 'under $40k/yr' },
   c2: { topPct: 0.52, label: 'around the US median', note: '$40–75k/yr' },
   c3: { topPct: 0.37, label: 'top ~37% of households', note: '$75–110k/yr' },
   c4: { topPct: 0.22, label: 'top ~22% of households', note: '$110–150k/yr' },

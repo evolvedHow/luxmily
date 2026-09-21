@@ -1,3 +1,4 @@
+import { currentPersonalCpi } from '../pi/personalCpi'
 import { C, money, pct } from '../theme/tokens'
 import type { ResolvedBudget, ResolvedCategory } from '../engine/types'
 
@@ -22,13 +23,16 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
         <Meta label="Monthly income" value={money(r.incomeMonthly)} />
         <Meta label="Take-home (Cap)" value={money(r.cap)} bold />
         <Meta label="Planned" value={money(r.totalPlan)} />
+        <Meta label="Unallocated" value={money(r.unallocated)} />
         <Meta label="Cohort" value={r.cohortLabel} />
-        <Meta label="Status" value={r.ok ? 'Optimized' : 'Over plan'} />
+        <Meta label="Status" value={r.ok ? 'Within cap' : 'Over cap'} />
       </div>
+
+      <PiiBlock r={r} />
 
       {r.payFirst.length > 0 && (
         <Section title="Pay yourself first — mandatory" note="benchmarks: Vanguard · FRED PSAVERT · BLS CEX 2024">
-          <PlanTable rows={r.payFirst} />
+          <PlanTable rows={r.payFirst} cap={r.cap} />
         </Section>
       )}
 
@@ -66,14 +70,20 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
           title={`${t.label} · ${pct(t.share, 0)}`}
           note={`bench ${pct(t.benchShare, 0)} · ${t.benchSource}`}
         >
-          <PlanTable rows={t.cats} desc={`Allocated ${money(t.allocation)} · Planned ${money(t.planTotal)}`} />
+          <PlanTable
+            rows={t.cats}
+            cap={r.cap}
+            desc={`Planned ${money(t.planTotal)}${t.lockedTotal > 0 ? ` · ${money(t.lockedTotal)} locked` : ''}`}
+          />
         </Section>
       ))}
 
       <div style={{ marginTop: 12, fontSize: 10, color: r.ok ? '#1d7a3f' : C.red, fontWeight: 700 }}>
         {r.ok
-          ? 'Plan fits inside the cap — nothing over its theme allocation.'
-          : `Over plan: themes are ${money(r.totalPlanOver)} over their allocations — take it from somewhere else.`}
+          ? r.unallocated > 0
+            ? `Within cap — ${money(r.unallocated)} still available to allocate.`
+            : 'Within cap — every dollar of take-home is assigned.'
+          : `Over cap by ${money(Math.abs(r.unallocated))} — trim a category or pull one back.`}
       </div>
 
       <div style={{ fontSize: 8.5, color: '#888', marginTop: 8 }}>
@@ -83,7 +93,50 @@ export function PrintSheet({ r }: { r: ResolvedBudget }) {
   )
 }
 
-function PlanTable({ rows, desc }: { rows: ResolvedCategory[]; desc?: string }) {
+/** pII on the report — the number and the weights that produced it. */
+function PiiBlock({ r }: { r: ResolvedBudget }) {
+  const p = currentPersonalCpi(r)
+  if (p.ratePct === null) return null
+  const fmt = (n: number | null | undefined, d = 2) =>
+    n == null ? '—' : `${n >= 0 ? '' : '−'}${Math.abs(n).toFixed(d)}%`
+
+  return (
+    <div style={{ margin: '10px 0', pageBreakInside: 'avoid' } as React.CSSProperties}>
+      <div style={{ fontWeight: 700, fontSize: 11.5 }}>
+        pII · personal Inflation index — {fmt(p.ratePct)}
+      </div>
+      <div style={{ fontSize: 8.5, color: '#777', margin: '2px 0 4px' }}>
+        headline CPI-U {fmt(p.officialPct)} as of {p.asOf ?? 'n/a'} · official BLS CPI-U rates reweighted by this
+        plan's allocation over {money(p.coveredPlan)}/mo of consumption ({money(p.excludedPlan)}/mo of savings
+        excluded)
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', fontSize: 10, padding: '4px 8px', borderBottom: '1px solid #444' }}>Theme</th>
+            <th style={{ textAlign: 'left', fontSize: 10, padding: '4px 8px', borderBottom: '1px solid #444' }}>Your weight</th>
+            <th style={{ textAlign: 'left', fontSize: 10, padding: '4px 8px', borderBottom: '1px solid #444' }}>CPI weight</th>
+            <th style={{ textAlign: 'left', fontSize: 10, padding: '4px 8px', borderBottom: '1px solid #444' }}>Inflation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {p.themes.map((t) => (
+            <tr key={t.themeId}>
+              <td style={{ fontSize: 10.5, padding: '3px 8px', borderBottom: '1px solid #ddd' }}>{t.label}</td>
+              <td style={{ fontSize: 10.5, padding: '3px 8px', borderBottom: '1px solid #ddd' }}>{t.weightPct.toFixed(1)}%</td>
+              <td style={{ fontSize: 10.5, padding: '3px 8px', borderBottom: '1px solid #ddd' }}>
+                {t.officialWeightPct != null ? `${t.officialWeightPct.toFixed(1)}%` : '—'}
+              </td>
+              <td style={{ fontSize: 10.5, padding: '3px 8px', borderBottom: '1px solid #ddd' }}>{fmt(t.inflationPct, 1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function PlanTable({ rows, cap, desc }: { rows: ResolvedCategory[]; cap: number; desc?: string }) {
   const th: React.CSSProperties = { textAlign: 'left', fontSize: 10, padding: '4px 8px', borderBottom: '1px solid #444' }
   const td: React.CSSProperties = { fontSize: 10.5, padding: '3px 8px', borderBottom: '1px solid #ddd' }
 
@@ -107,7 +160,7 @@ function PlanTable({ rows, desc }: { rows: ResolvedCategory[]; desc?: string }) 
               <td style={td}>{money(c.benchAvg)}/mo</td>
               <td style={td}>{c.benchMedian !== undefined ? `${money(c.benchMedian)}/mo` : '—'}</td>
               <td style={td}>{money(c.plan)}</td>
-              <td style={td}>—</td>
+              <td style={td}>{cap > 0 ? pct(c.plan / cap, 1) : '—'}</td>
             </tr>
           ))}
         </tbody>

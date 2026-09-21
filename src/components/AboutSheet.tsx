@@ -11,10 +11,12 @@ import { C, money } from '../theme/tokens'
  */
 
 const PRINCIPLES: { k: string; v: string }[] = [
-  { k: 'Top-down, not bottom-up', v: 'You never guess line items first. One number — your take-home — is the hard cap; themes get shares of it; categories fit inside their themes. Everything is solvable because everything has an envelope.' },
+  { k: 'Top-down, not bottom-up', v: 'You never guess line items first. One number — your take-home — is the hard cap, and every theme is simply a share of it. Move a theme and its categories move with it, in proportion.' },
   { k: 'Pay yourself first', v: '401(k) / Roth / emergency sit on their own mandatory strip with benchmark rails. Savings is decided before spending, never the leftover.' },
   { k: 'No credit-card debt', v: 'If you carry high-interest balances, pay them off before growing anything else — no plan that borrows against the future is a plan.' },
-  { k: 'Red is information, not shame', v: 'Over-plan never auto-rewrites anything. It tells you what to trim or where to fund from — take it from elsewhere, consciously.' },
+  { k: 'Nothing moves unless you move it', v: 'Trimming a category frees money into "available to allocate" — it is not quietly handed to another theme. You decide where it lands, or bank it in the emergency buffer.' },
+  { k: 'Lock what is already decided', v: 'Rent is rent. Pin any category or whole theme and it sits out every resize; the rest absorb the change in proportion. Reset a theme to put it back on its benchmarks.' },
+  { k: 'Red is information, not shame', v: 'Only overrunning your take-home is red, and even then nothing is auto-rewritten. It tells you what to trim — you take it from elsewhere, consciously.' },
   { k: 'Averages are for reference', v: 'The benchmark numbers steer the starting point and the “is this sane?” rail. They are your income cohort’s typical spending — not a must, not a maximum. Your plan is yours.' },
 ]
 
@@ -58,8 +60,8 @@ export function AboutSheet({ open, onClose }: { open: boolean; onClose: () => vo
           <p className="text-[12.5px] leading-relaxed" style={{ color: C.text }}>
             Luxmi.ly is a <strong>budget optimizer, not an expense tracker</strong>. It never records your day-to-day
             spending. You tell it one number you can live within — your take-home pay — and it shows you what a
-            benchmark-guided, balanced plan looks like inside that number, and what your discovered spending actually
-            means.
+            benchmark-guided, balanced plan looks like inside that number — and what inflation that particular plan is
+            actually running at.
             <sup>In memory of Lakshmi Ramaswamy-Ganapathy Iyer</sup>
           </p>
 

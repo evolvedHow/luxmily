@@ -1,6 +1,6 @@
 import { cohortById, cohortScale } from '../data/benchmarks'
 import type { Budget, BudgetCategory, BudgetTheme } from './types'
-import { allocate, boundsFor } from './solver'
+import { EPS } from './prorate'
 import type { ResolvedBudget, ResolvedCategory, ResolvedTheme } from './types'
 
 function benchDollars(c: BudgetCategory, income: number, takeHome: number, scale: number): number {
@@ -29,11 +29,15 @@ function distinctSources(t: BudgetTheme): { label: string; url?: string }[] {
 }
 
 /**
- * The single entry point the UI calls. Theme shares always sum to 1 — the solver
- * re-normalizes whichever theme the user drags so the percentages stay enforced
- * green. Dollars are the user's own: a category plan over a theme's allocation is
- * reported red. Nothing is ever recorded about real spending — the optimizer only
- * reads the plan.
+ * The single entry point the UI calls.
+ *
+ * Dollars are the model. A theme's share is derived from what its categories
+ * plan, not the other way round, so a theme can never "overrun its allocation"
+ * — it simply is its allocation. The only line that can be crossed is the Cap,
+ * and crossing it shows up as a negative `unallocated` bucket.
+ *
+ * Nothing is ever rewritten here. Redistribution happens in the store (via
+ * `prorate`) in response to a deliberate user action; `resolve` only reports.
  */
 export function resolve(budget: Budget): ResolvedBudget {
   const cap = Math.max(0, budget.takeHome)
@@ -41,13 +45,7 @@ export function resolve(budget: Budget): ResolvedBudget {
   const scale = cohortScale(cohort)
   const income = Math.max(0, budget.incomeMonthly)
 
-  const themeBounds = budget.themes.map((t) => boundsFor(t.id, 'elastic', Math.max(0, t.share)))
-  const themeAlloc = allocate(1, themeBounds)
-
   const themes: ResolvedTheme[] = budget.themes.map((t) => {
-    const share = themeAlloc.alloc[t.id] ?? 0
-    const allocation = cap * share
-
     const cats: ResolvedCategory[] = t.cats.map((c) => {
       const plan = Math.max(0, c.plan)
       const median = medianDollars(c, income, cap, scale)
@@ -55,7 +53,7 @@ export function resolve(budget: Budget): ResolvedBudget {
         id: c.id,
         themeId: t.id,
         label: c.label,
-        lock: c.lock,
+        locked: c.locked,
         plan,
         benchAvg: Math.round(benchDollars(c, income, cap, scale)),
         benchMedian: median === undefined ? undefined : Math.round(median),
@@ -68,15 +66,17 @@ export function resolve(budget: Budget): ResolvedBudget {
     })
 
     const planTotal = cats.reduce((s, c) => s + c.plan, 0)
+    const lockedTotal = cats.filter((c) => c.locked).reduce((s, c) => s + c.plan, 0)
+
     return {
       id: t.id,
       label: t.label,
       payFirst: t.payFirst,
-      targetShare: t.share,
-      share,
-      allocation,
+      locked: t.locked,
+      share: cap > 0 ? planTotal / cap : 0,
       planTotal,
-      planOver: Math.max(0, planTotal - allocation),
+      lockedTotal,
+      fullyLocked: cats.length > 0 && cats.every((c) => c.locked),
       benchShare: t.benchShare,
       benchSource: t.benchSource,
       sources: distinctSources(t),
@@ -85,8 +85,8 @@ export function resolve(budget: Budget): ResolvedBudget {
   })
 
   const totalPlan = themes.reduce((s, t) => s + t.planTotal, 0)
-  const totalPlanOver = themes.reduce((s, t) => s + t.planOver, 0)
   const payFirst = themes.flatMap((t) => t.cats.filter((c) => c.payFirst))
+  const unallocated = cap - totalPlan
 
   return {
     incomeMonthly: income,
@@ -98,8 +98,7 @@ export function resolve(budget: Budget): ResolvedBudget {
     themes,
     payFirst,
     totalPlan,
-    totalPlanOver,
-    buffer: cap - totalPlan,
-    ok: totalPlanOver === 0,
+    unallocated,
+    ok: unallocated >= -EPS,
   }
 }

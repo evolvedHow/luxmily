@@ -31,11 +31,19 @@ export function loadLuxmiConfig(): LuxmiConfig {
     (() => {
       try {
         return load(raw)
-      } catch {
+      } catch (e) {
+        // A YAML syntax error used to degrade *silently* to the stub prompt
+        // below — the shipped advisor ran on 48 characters of instruction and
+        // nothing said so. Degrade gracefully, but never quietly.
+        console.error('[luxmi] luxmi.yaml failed to parse — falling back to the stub prompt.', e)
         return {}
       }
     })(),
   )
+
+  if (typeof doc.system !== 'string' || doc.system.trim().length === 0) {
+    console.error('[luxmi] luxmi.yaml has no `system` prompt — falling back to the stub prompt.')
+  }
 
   return {
     system: asString(doc.system, 'You are Luxmi — a warm, practical budget advisor.'),

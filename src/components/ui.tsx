@@ -6,12 +6,14 @@ export function MoneyInput({
   label,
   accent = C.text,
   className = '',
+  disabled = false,
 }: {
   value: number
   onChange: (v: number) => void
   label: string
   accent?: string
   className?: string
+  disabled?: boolean
 }) {
   return (
     <input
@@ -22,9 +24,10 @@ export function MoneyInput({
       aria-label={label}
       value={value || ''}
       placeholder="0"
+      disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value))}
-      className={`tnum w-24 rounded-xl border bg-transparent px-2.5 py-2 text-right text-[13px] outline-none transition-colors ${className}`}
-      style={{ borderColor: C.border, color: accent }}
+      className={`tnum w-24 rounded-xl border bg-transparent px-2.5 py-2 text-right text-[13px] outline-none transition-colors disabled:opacity-60 ${className}`}
+      style={{ borderColor: disabled ? C.border : C.border, color: accent }}
       onFocus={(e) => (e.currentTarget.style.borderColor = accent)}
       onBlur={(e) => (e.currentTarget.style.borderColor = C.border)}
     />

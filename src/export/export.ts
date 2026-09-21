@@ -1,4 +1,5 @@
 import { cohortById } from '../data/benchmarks'
+import { currentPersonalCpi } from '../pi/personalCpi'
 import type { ResolvedBudget, ResolvedCategory, ResolvedTheme } from '../engine/types'
 
 export interface ExportCategory {
@@ -6,7 +7,8 @@ export interface ExportCategory {
   label: string
   payFirst: boolean
   flex: boolean
-  lock: string
+  /** Pinned by the user — excluded from theme proration. */
+  locked: boolean
   plan: number
   benchAvg: number
   benchMedian?: number
@@ -21,9 +23,10 @@ export interface ExportTheme {
   payFirst: boolean
   sharePct: number
   benchSharePct: number
-  allocation: number
   planTotal: number
-  planOver: number
+  /** Locked subtotal inside the theme — its floor. */
+  lockedTotal: number
+  locked: boolean
   source: string
   sources: { label: string; url?: string }[]
   cats: ExportCategory[]
@@ -49,9 +52,40 @@ export interface ExportBudget {
       medianIncome: number
     } | null
     ok: boolean
-    buffer: number
+    /** Cap − totalPlan. Positive = cash still to assign; negative = over cap. */
+    unallocated: number
     totalPlan: number
-    totalPlanOver: number
+  }
+  /**
+   * pII — personal Inflation index. Official BLS CPI-U rates reweighted by
+   * this budget's own allocation. Optimizer-only: derived from the plan, never
+   * from actual spending.
+   */
+  personalInflation: {
+    /** Your allocation-weighted inflation rate (y/y, %). */
+    piiPct: number | null
+    /** Headline CPI-U all-items rate over the same window (%). */
+    headlinePct: number | null
+    /** Points above (+) or below (−) the headline. */
+    vsHeadlinePts: number | null
+    asOf: string | null
+    /** Planned consumption the index is computed over ($/mo). */
+    coveredPlan: number
+    /** Savings held out of the basket ($/mo) — saving is not consumption. */
+    excludedPlan: number
+    source: string
+    themes: {
+      id: string
+      label: string
+      /** Your share of the covered basket (%). */
+      weightPct: number
+      /** CPI-U's own share of the same set (%). */
+      cpiWeightPct: number | null
+      /** This theme's dollar-weighted inflation (%). */
+      inflationPct: number | null
+      /** Points of your pII contributed by this theme. */
+      contributionPts: number
+    }[]
   }
   payYourselfFirst: ExportCategory[]
   themes: ExportTheme[]
@@ -63,7 +97,7 @@ function cat(r: ResolvedCategory): ExportCategory {
     label: r.label,
     payFirst: r.payFirst,
     flex: r.flex,
-    lock: r.lock,
+    locked: r.locked,
     plan: r.plan,
     benchAvg: r.benchAvg,
     benchMedian: r.benchMedian,
@@ -80,9 +114,9 @@ function theme(t: ResolvedTheme): ExportTheme {
     payFirst: t.payFirst,
     sharePct: Math.round(t.share * 1000) / 10,
     benchSharePct: Math.round(t.benchShare * 1000) / 10,
-    allocation: t.allocation,
     planTotal: t.planTotal,
-    planOver: t.planOver,
+    lockedTotal: t.lockedTotal,
+    locked: t.locked,
     source: t.benchSource,
     sources: t.sources,
     cats: t.cats.map(cat),
@@ -112,10 +146,32 @@ export function toExport(r: ResolvedBudget): ExportBudget {
           }
         : null,
       ok: r.ok,
-      buffer: r.buffer,
+      unallocated: r.unallocated,
       totalPlan: r.totalPlan,
-      totalPlanOver: r.totalPlanOver,
     },
+    personalInflation: (() => {
+      const p = currentPersonalCpi(r)
+      return {
+        piiPct: p.ratePct === null ? null : Math.round(p.ratePct * 100) / 100,
+        headlinePct: p.officialPct === null ? null : Math.round(p.officialPct * 100) / 100,
+        vsHeadlinePts:
+          p.ratePct === null || p.officialPct === null
+            ? null
+            : Math.round((p.ratePct - p.officialPct) * 100) / 100,
+        asOf: p.asOf,
+        coveredPlan: p.coveredPlan,
+        excludedPlan: p.excludedPlan,
+        source: `BLS CPI-U · ${p.area} · ${p.population} · snapshot ${p.version}`,
+        themes: p.themes.map((t) => ({
+          id: t.themeId,
+          label: t.label,
+          weightPct: Math.round(t.weightPct * 10) / 10,
+          cpiWeightPct: t.officialWeightPct === undefined ? null : Math.round(t.officialWeightPct * 10) / 10,
+          inflationPct: t.inflationPct === null ? null : Math.round(t.inflationPct * 100) / 100,
+          contributionPts: Math.round(t.contributionPts * 1000) / 1000,
+        })),
+      }
+    })(),
     payYourselfFirst: r.payFirst.map(cat),
     themes: r.themes.map(theme),
   }
@@ -166,12 +222,22 @@ export function toCSV(r: ResolvedBudget): string {
       ? `${m.meta.location.metro} (${m.meta.location.zip}) — ${m.meta.location.cola}× national cost of living, rent ${m.meta.location.rentFactor}×`
       : 'US average',
   ])
-  rows.push(['Optimized (all green)', m.meta.ok ? 'yes' : 'no'])
-  rows.push(['Cap - plan buffer', r.buffer])
+  rows.push(['Within cap', m.meta.ok ? 'yes' : 'no'])
+  rows.push(['Unallocated (available to assign)', r.unallocated])
+  rows.push([
+    'pII (personal Inflation index)',
+    m.personalInflation.piiPct === null ? 'n/a' : `${m.personalInflation.piiPct}%`,
+  ])
+  rows.push([
+    'Headline CPI-U',
+    m.personalInflation.headlinePct === null
+      ? 'n/a'
+      : `${m.personalInflation.headlinePct}% (as of ${m.personalInflation.asOf ?? 'n/a'})`,
+  ])
   rows.push([])
-  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme alloc $', 'Plan over $', 'Lock', 'Source', 'Source link'])
+  rows.push(['Theme', 'Category', 'Bench avg $/mo', 'Bench median $/mo', 'Plan $', 'Theme total $', 'Locked', 'Source', 'Source link'])
   for (const t of m.themes) {
-    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', t.planTotal, t.allocation, t.planOver, '', t.source, ''])
+    rows.push([`${t.label} (${t.sharePct}%)`, '', '', '', '', t.planTotal, t.locked ? 'theme locked' : '', t.source, ''])
     for (const c of t.cats) {
       rows.push([
         '',
@@ -180,8 +246,7 @@ export function toCSV(r: ResolvedBudget): string {
         c.benchMedian ?? '',
         c.plan,
         '',
-        '',
-        c.lock,
+        c.locked ? 'locked' : '',
         c.benchSource,
         c.sourceUrl ?? '',
       ])

@@ -33,14 +33,15 @@ export function buildLuxmiUserPrompt(r: ResolvedBudget, compact = false): string
   return [
     `Here is my complete budget as a JSON document — the same file the app exports${compact ? ' (condensed for size: minified, source links stripped)' : ''}. It holds ALL of my inputs and every computed parameter:`,
     `- income ${Math.round(r.incomeMonthly).toLocaleString()}/mo, take-home cap ${Math.round(r.cap).toLocaleString()}, cohort "${r.cohortLabel}".`,
-    `- Adviser context: cohort avg annual spend, totals (plan / over-plan), cap buffer, ok flag.`,
-    `- ${x.themes.length} themes, each with share vs cohort benchmark share, allocation, plan total, plan over-runs, and its distinct sources (with URLs).`,
-    `- ${x.payYourselfFirst.length} pay-yourself-first rails and every category: plan, % of cap — plus benchmark avg/median and source.`,
+    `- Adviser context: cohort avg annual spend, total planned, unallocated cash (negative = over cap), ok flag.`,
+    `- ${x.themes.length} themes, each with its share of the cap vs the cohort benchmark share, plan total, locked subtotal, and its distinct sources (with URLs).`,
+    `- ${x.payYourselfFirst.length} pay-yourself-first rails and every category: plan $, lock, benchmark avg/median and source.`,
+    `- pII (personal Inflation index): this allocation's own inflation rate vs the headline CPI-U, with each theme's weight beside the national basket's weight.`,
     '',
     '```json',
     json,
     '```',
     '',
-    'Read the JSON carefully. Build the full narrative from it — balance, cohort comparison per theme, pay-yourself-first health, anomalies (plan over-runs), and concrete numbered tips with dollar figures. Only use numbers present in this JSON.',
+    'Read the JSON carefully. Build the full narrative from it — balance, cohort comparison per theme, pay-yourself-first health, anomalies, whether the cap is overrun or cash is sitting unallocated, what the pII says about how this particular basket is inflating, and concrete numbered tips with dollar figures. Only use numbers present in this JSON.',
   ].join('\n')
 }

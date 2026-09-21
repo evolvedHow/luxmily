@@ -17,6 +17,10 @@ compatibility_date = "2024-10-01"
 #   CFAI_BUDGET_USD = budget cap in USD (for estimated balance display)
 #   CFAI_IN_PRICE   = per-1M input-token price in USD (default: 0.051)
 #   CFAI_OUT_PRICE  = per-1M output-token price in USD (default: 0.335)
+#   ALLOWED_ORIGINS = comma-separated CORS origin allowlist (default: "*")
+#     The /api/advise endpoint is UNAUTHENTICATED — a static Pages site cannot
+#     hold a secret. Narrow this in production and put Cloudflare Access or WAF
+#     rate-limiting in front; an Origin header alone is not authentication.
 # ────────────────────────────────────────────────────────────────────
 
 [vars]
@@ -24,6 +28,8 @@ CFAI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 CFAI_BUDGET_USD = "25"
 CFAI_IN_PRICE = "0.051"
 CFAI_OUT_PRICE = "0.335"
+# Lock this down for a real deployment, e.g. "https://evolvedhow.github.io"
+ALLOWED_ORIGINS = "*"
 
 # ── Durable Object ──────────────────────────────────────────────────
 [durable_objects]
